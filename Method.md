@@ -11,13 +11,7 @@ Doing this well requires the student to
 
 (c) reason about where the two differ in functionality.
 
-This study breaks that single ask into three separate, individually-timed
-
-steps, so we can see *\*where\** the difficulty actually lives — do students
-
-struggle to understand the spec, to trace code, or to construct a
-
-distinguishing input, or all three?
+This study breaks that single ask into three separate, individually-timed steps, so we can see *\*where\** the difficulty actually lives — do students struggle to understand the specification, to understand/trace code, or to construct a distinguishing input, or all three?
 
 ## The three steps
 
