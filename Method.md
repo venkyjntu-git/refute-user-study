@@ -126,7 +126,7 @@ might submit:
 |---|---|---|---|
 | `max_of_three(1, 3, 5)` | `5` | `3` | ✅ valid counter-example (outputs differ) |
 
-If a student instead submits `max_of_three(1, 2, 3)` again, both outputs
+If a student instead submits `max_of_three(2,1,3)` again, both outputs
 would be `3` — not a counter-example — and they'd be told to try a
 different input.
 
