@@ -1,23 +1,15 @@
 # Refute-Problem User Study — What It Measures and How
 
 ## Background
-In **CS1**, a **Refute problem** involves a task description and a buggy program. The student must find a **counter-example**—an input for which the buggy program produces the wrong output.
+In **CS1**, a **Refute problem** involves a task description and a buggy program. The student must find a **counter-example**, an input for which the buggy program produces the wrong output.
 
-A **\*\*Refute problem\*\*** in a CS1 setting gives a student:
+Doing this well requires the student to 
 
-\- a task description (what the function is supposed to do), and
+(a) understand what the function is  *\*supposed\** to do, 
 
-\- a single buggy implementation of that function,
+(b) read/trace the buggy code accurately, and 
 
-and asks the student to find a **\*\*counter-example\*\***: an input on which the
-
-buggy code's output differs from what the correct code would produce. Doing
-
-this well requires the student to (a) understand what the function is
-
-*\*supposed\** to do, (b) read/trace the buggy code accurately, and (c) reason
-
-about where the two diverge.
+(c) reason about where the two differ in functionality.
 
 This study breaks that single ask into three separate, individually-timed
 
