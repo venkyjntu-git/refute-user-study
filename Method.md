@@ -96,7 +96,7 @@ Sample inputs given to the student to trace:
 
 | Sample input | Student's traced output | Actual buggy output | Result |
 |---|---|---|---|
-| `max_of_three(1, 2, 3)` | `3` | `3` | matches (bug doesn't manifest here) |
+| `max_of_three(2, 1, 3)` | `3` | `3` | matches (bug doesn't manifest here) |
 | `max_of_three(3, 2, 1)` | `3` | `3` | matches |
 
 Note these two sample inputs happen to *not* expose the bug — that's
