@@ -31,11 +31,28 @@ class Step1SubmitRequest(BaseModel):
 
 
 class PairResult(BaseModel):
+    """Full Step-1 result. Written to StepEvent.payload for analysis only —
+    never returned to the student, because `actual` and `error` both carry
+    information about the hidden reference implementation."""
     call: str
     expected: str
     actual: Optional[str] = None
     correct: bool
     error: Optional[str] = None
+
+
+class PairResultPublic(BaseModel):
+    """What the student sees after a Step-1 submission.
+
+    Deliberately omits `actual`: revealing the reference implementation's
+    output would let a student copy all three pairs back on the next attempt,
+    which collapses the Step-1 gate and makes `attempt_number` meaningless —
+    an attempt count of 2 could no longer be told apart from transcription.
+    """
+    call: str
+    expected: str          # echo of what the student typed — their own input, no leak
+    correct: bool
+    could_not_run: bool = False   # the call errored; the wording lives in the UI
 
 
 class TraceRow(BaseModel):
@@ -65,7 +82,7 @@ class TraceTable(BaseModel):
 
 class Step1SubmitResponse(BaseModel):
     all_correct: bool
-    results: List[PairResult]
+    results: List[PairResultPublic]
     attempt_number: int
     # populated only when all_correct becomes True for the first time
     buggy_code: Optional[str] = None

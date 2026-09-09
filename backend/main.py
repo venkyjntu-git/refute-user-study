@@ -191,8 +191,20 @@ def submit_io_pairs(req: schemas.Step1SubmitRequest, db: Session = Depends(get_d
         payload={"pairs": [r.dict() for r in results]},
     )
 
+    # The student is told which pairs are wrong, never what the right answer was:
+    # handing back the reference output lets them copy all three on the next
+    # attempt, which turns the gate into a formality. The full results (with
+    # `actual` and the real error text) stay in the logged payload above.
+    public_results = [
+        schemas.PairResultPublic(
+            call=r.call, expected=r.expected,
+            correct=r.correct, could_not_run=r.error is not None,
+        )
+        for r in results
+    ]
+
     resp = schemas.Step1SubmitResponse(
-        all_correct=all_correct, results=results, attempt_number=attempt_number,
+        all_correct=all_correct, results=public_results, attempt_number=attempt_number,
     )
 
     if all_correct and not session.io_pairs_completed:

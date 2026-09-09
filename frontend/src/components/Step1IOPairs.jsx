@@ -84,19 +84,23 @@ export default function Step1IOPairs({ session, onCompleted }) {
 
       {results && (
         <div style={{ marginTop: 16 }}>
+          {/* Which pairs were wrong, but never what the right output was —
+              otherwise the student can copy the answers back on the next
+              attempt and the step stops measuring spec comprehension. */}
           {results.results.map((r, idx) => (
             <div className="result-item" key={idx}>
-              {r.call} → expected {r.expected}
-              {r.error ? (
-                <span className="result-badge incorrect">ERROR: {r.error}</span>
-              ) : (
+              {r.call} — you said {r.expected}
+              {r.could_not_run ? (
                 <>
-                  {" "}
-                  (actual: {r.actual})
-                  <span className={`result-badge ${r.correct ? "correct" : "incorrect"}`}>
-                    {r.correct ? "CORRECT" : "INCORRECT"}
-                  </span>
+                  <span className="result-badge incorrect">COULDN'T RUN</span>
+                  <div className="result-hint">
+                    Check the function name and the number of arguments.
+                  </div>
                 </>
+              ) : (
+                <span className={`result-badge ${r.correct ? "correct" : "incorrect"}`}>
+                  {r.correct ? "CORRECT" : "INCORRECT"}
+                </span>
               )}
             </div>
           ))}

@@ -39,11 +39,24 @@ expected output
 The system runs each of the student's calls against the **correct**
 reference implementation (hidden from the student) and checks whether the
 student's expected output matches. The student must get all three pairs
-correct before moving on; incorrect pairs are shown back with the actual
-output, and the student may revise and resubmit.
+correct before moving on. Each pair is marked correct or incorrect and the
+student may revise and resubmit as many times as they need — but **the
+reference implementation's output is never shown**. If a call cannot be run at
+all (wrong function name, wrong number of arguments, bad syntax) the student is
+told only to check the name and arguments, not the underlying Python error.
+
+Withholding the output is what keeps the step measuring anything. If wrong
+pairs came back with the correct answer attached, a student could copy all
+three verbatim on the next attempt: the gate would become a formality and
+`attempt_number` would no longer distinguish "worked it out on reflection"
+from "transcribed what the system just revealed". The real output and the true
+error text are still recorded server-side for analysis. This mirrors the
+no-feedback rule in Step 2, for the same reason — later steps have to measure
+unaided reasoning.
 
 **What this measures:** whether the student has correctly internalized the
-specification, independent of any code at all. If a student can't produce
+specification, independent of any code at all — and, through the attempt
+count, how readily they got there unaided. If a student can't produce
 three correct (input, output) pairs, later confusion about the buggy code
 is at least partly a spec-comprehension problem, not (only) a code-tracing
 problem.

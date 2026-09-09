@@ -97,6 +97,14 @@ button.secondary {
 .result-badge.correct { background: #dcfce7; color: #166534; }
 .result-badge.incorrect { background: #fee2e2; color: #991b1b; }
 
+/* Generic follow-up under a COULDN'T RUN badge — deliberately says nothing
+   about the reference implementation's output. */
+.result-hint {
+  margin-top: 4px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
 .result-item {
   padding: 10px;
   border-radius: 8px;
