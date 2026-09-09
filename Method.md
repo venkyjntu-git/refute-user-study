@@ -45,11 +45,7 @@ reference implementation's output is never shown**. If a call cannot be run at
 all (wrong function name, wrong number of arguments, bad syntax) the student is
 told only to check the name and arguments, not the underlying Python error.
 
-Withholding the output is what keeps the step measuring anything. If wrong
-pairs came back with the correct answer attached, a student could copy all
-three verbatim on the next attempt: the gate would become a formality and
-`attempt_number` would no longer distinguish "worked it out on reflection"
-from "transcribed what the system just revealed". The real output and the true
+The real output and the true
 error text are still recorded server-side for analysis. This mirrors the
 no-feedback rule in Step 2, for the same reason — later steps have to measure
 unaided reasoning.
@@ -104,7 +100,7 @@ Everything is scored server-side for later analysis.
 researcher has already chosen — separate from the harder job of *inventing* a
 distinguishing input in Step 3. Unlike a single output box, it says **where**
 the student's mental execution left the machine's, and separates a
-control-flow misconception from an arithmetic slip.
+control-flow misconception.
 
 **Why the change from output prediction.** Asking only for the return value
 yields one bit per sample input. Both papers this design draws on reject that:
