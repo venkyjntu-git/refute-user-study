@@ -49,13 +49,19 @@ services:
     name: refute-study-web
     runtime: static
     rootDir: frontend
-    buildCommand: npm ci && npm run build
+    # pnpm, not npm: the npm lockfile kept drifting on transitive deps with
+    # floating ranges (yaml, typescript), which broke `npm ci` on Render.
+    # pnpm is installed explicitly so the build does not depend on whether
+    # Render's image ships it or on corepack's interactive download prompt.
+    buildCommand: npm i -g pnpm@11.17.0 && pnpm install --frozen-lockfile && pnpm run build
     staticPublishPath: build
     autoDeploy: true
     envVars:
-      # react-scripts 5 is not tested on Node 22; pin to the last LTS it builds on.
+      # Must be >= 22.13: pnpm 11 uses the node:sqlite builtin and refuses to
+      # run on older Node. 24.18.0 is the exact version this build is verified
+      # against locally (react-scripts 5 compiles fine on it).
       - key: NODE_VERSION
-        value: "20.18.0"
+        value: "24.18.0"
       # Render sets CI=true, which makes CRA treat lint warnings as build errors.
       - key: CI
         value: "false"
