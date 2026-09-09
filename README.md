@@ -5,9 +5,7 @@ FastAPI backend + React frontend implementing the 4-step study flow:
 1. **Task description + 3 I/O pairs** — student writes `funcname(args)` /
    expected-output pairs; checked live against the correct code. Each pair is
    marked correct/incorrect, but **the correct code's output is never shown** —
-   otherwise the student could copy the answers back on the next attempt and
-   `attempt_number` would stop meaning anything. `actual` and the real error
-   text still go into `StepEvent.payload` for analysis.
+   log attempts for analysis.
 2. **Trace buggy code** — shown once all 3 pairs are correct. For each of two
    fixed sample inputs the student fills in an execution trace table (one row
    per executed line: variable values after that line, and which line runs
