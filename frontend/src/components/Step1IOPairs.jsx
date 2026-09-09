@@ -34,7 +34,7 @@ export default function Step1IOPairs({ session, onCompleted }) {
       const res = await api.submitIOPairs(session.session_id, pairs);
       setResults(res);
       if (res.all_correct) {
-        onCompleted(res.buggy_code, res.trace_sample_inputs);
+        onCompleted(res.buggy_code, res.trace_tables);
       }
     } catch (e) {
       setError(e.message);

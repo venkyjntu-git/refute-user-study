@@ -6,10 +6,14 @@ Flow enforced server-side (see models.StepName):
   2. io_pairs           -> student submits 3 (call, expected) pairs, checked
                            against the CORRECT code. Must all be correct to
                            unlock the next step.
-  3. buggy_trace         -> student is shown buggy code + 2 sample inputs and
-                           traces the output by hand. Not gated (this is the
-                           learning task itself), but we score it against the
-                           actual buggy-code output for analysis.
+  3. buggy_trace         -> student is shown the buggy code plus, for each
+                           sample input, a blank execution trace table (one row
+                           per executed line: the variable values that line
+                           produced, and which line runs next). Collect-only
+                           and single-attempt: the student is told nothing
+                           about correctness, because revealing the trace would
+                           hand them the bug before step 4. Grading happens
+                           server-side into StepEvent.payload.
   4. counter_example     -> student submits one call; we run it against BOTH
                            correct and buggy code and report match/mismatch.
 
@@ -21,6 +25,7 @@ submission).
 """
 from typing import List
 import datetime as dt
+import os
 
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,18 +36,31 @@ from database import Base, engine, get_db
 import models
 import schemas
 import sandbox
+import trace_table
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Refute Problem Study API")
 
+# ALLOWED_ORIGINS is a comma-separated list of frontend origins, e.g.
+# "https://refute-study.onrender.com". Unset (local dev) falls back to "*".
+# Note: the browser rejects allow_credentials with a "*" origin, so the two
+# branches differ deliberately — the app uses no cookies either way.
+_origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten to your frontend origin(s) before real deployment
-    allow_credentials=True,
+    allow_origins=_origins or ["*"],
+    allow_credentials=bool(_origins),
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/api/health")
+def health():
+    """Liveness probe for Render — deliberately does not touch the database."""
+    return {"status": "ok"}
 
 
 # ---------------------------------------------------------------------------
@@ -129,6 +147,15 @@ def mark_shown(req: schemas.MarkShownRequest, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
+def _attach_trace_step(resp: schemas.Step1SubmitResponse, task: models.Task) -> None:
+    """Hand the student the buggy code and one blank trace table per sample input."""
+    resp.buggy_code = task.buggy_code
+    resp.trace_sample_inputs = task.trace_sample_inputs
+    resp.trace_tables = [
+        trace_table.build_table(task, call) for call in (task.trace_sample_inputs or [])
+    ]
+
+
 # ---------------------------------------------------------------------------
 # step 1: three I/O pairs, checked against correct code
 # ---------------------------------------------------------------------------
@@ -171,20 +198,18 @@ def submit_io_pairs(req: schemas.Step1SubmitRequest, db: Session = Depends(get_d
     if all_correct and not session.io_pairs_completed:
         session.io_pairs_completed = True
         db.commit()
-        resp.buggy_code = task.buggy_code
-        resp.trace_sample_inputs = task.trace_sample_inputs
+        _attach_trace_step(resp, task)
         _log_event(db, session.id, models.StepName.buggy_trace, models.EventType.shown)
     elif session.io_pairs_completed:
         # already unlocked previously; still return the buggy code so a page
         # refresh doesn't strand the student
-        resp.buggy_code = task.buggy_code
-        resp.trace_sample_inputs = task.trace_sample_inputs
+        _attach_trace_step(resp, task)
 
     return resp
 
 
 # ---------------------------------------------------------------------------
-# step 2 (UI): trace buggy code on sample inputs
+# step 2 (UI): fill in the execution trace of the buggy code
 # ---------------------------------------------------------------------------
 
 @app.post("/api/step2/submit", response_model=schemas.Step2SubmitResponse)
@@ -192,36 +217,34 @@ def submit_trace(req: schemas.Step2SubmitRequest, db: Session = Depends(get_db))
     session = _get_session_or_404(db, req.session_id)
     if not session.io_pairs_completed:
         raise HTTPException(400, "complete the input/output pairs step first")
+    # Single attempt by design: with no feedback there is nothing to learn from
+    # a resubmission, and allowing one would muddy the step-2 timing measure.
+    if session.buggy_trace_completed:
+        raise HTTPException(400, "trace step already submitted")
     task = session.task
 
-    results: List[schemas.TraceResult] = []
-    for item in req.traces:
-        exec_result = sandbox.run_call(task.buggy_code, item.call)
-        if not exec_result.ok:
-            results.append(schemas.TraceResult(
-                call=item.call, student_output=item.student_output, error=exec_result.error
-            ))
-            continue
-        matches = sandbox.values_equal(exec_result.value_repr, item.student_output)
-        results.append(schemas.TraceResult(
-            call=item.call, student_output=item.student_output,
-            actual_buggy_output=exec_result.value_repr, matches_actual=matches,
-        ))
+    # Ground truth is re-derived here, never taken from the request.
+    graded = [trace_table.grade(task, answer) for answer in req.traces]
+    summary = trace_table.summarise(graded)
 
     attempt_number = _next_attempt_number(db, session.id, models.StepName.buggy_trace)
     _log_event(
         db, session.id, models.StepName.buggy_trace, models.EventType.submitted,
         attempt_number=attempt_number,
-        payload={"traces": [r.dict() for r in results]},
+        # is_correct stays the final-output measure so analysis written against
+        # the pre-redesign data keeps working; the richer scores are in payload.
+        is_correct=(summary.get("final_outputs_correct") == summary.get("traces_scored")
+                    if summary.get("traces_scored") else None),
+        payload={"traces": graded, "summary": summary},
     )
 
-    if not session.buggy_trace_completed:
-        session.buggy_trace_completed = True
-        db.commit()
-        _log_event(db, session.id, models.StepName.counter_example, models.EventType.shown)
+    session.buggy_trace_completed = True
+    db.commit()
+    _log_event(db, session.id, models.StepName.counter_example, models.EventType.shown)
 
+    # Nothing about correctness crosses back to the student.
     return schemas.Step2SubmitResponse(
-        results=results, attempt_number=attempt_number, unlocked_counter_example=True,
+        accepted=True, attempt_number=attempt_number, unlocked_counter_example=True,
     )
 
 
@@ -334,6 +357,78 @@ def export_csv(db: Session = Depends(get_db)):
     return StreamingResponse(
         buf, media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=study_export.csv"},
+    )
+
+
+@app.get("/api/admin/trace_export.csv")
+def export_trace_csv(db: Session = Depends(get_db)):
+    """
+    Cell-level CSV of every step-2 trace answer — one row per
+    (session, sample input, trace step, cell) — for the tracing analysis.
+
+    The general export dumps `payload` as an opaque JSON blob, which is fine
+    for the other steps but unusable for per-cell stats in pandas/R/SPSS.
+    """
+    import io
+    import csv
+    from fastapi.responses import StreamingResponse
+
+    rows = (
+        db.query(models.StepEvent, models.StudySession)
+        .join(models.StudySession, models.StepEvent.session_id == models.StudySession.id)
+        .filter(
+            models.StepEvent.step == models.StepName.buggy_trace,
+            models.StepEvent.event_type == models.EventType.submitted,
+        )
+        .order_by(models.StepEvent.session_id, models.StepEvent.timestamp)
+        .all()
+    )
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([
+        "session_id", "student_identifier", "task_id", "timestamp", "call",
+        "step", "lineno", "line_text", "depth", "cell_kind", "variable",
+        "student_value", "actual_value", "correct", "prefilled",
+        "first_divergence_step", "correct_at_buggy_line",
+        "final_output_correct", "right_answer_wrong_trace",
+    ])
+
+    for ev, sess in rows:
+        payload = ev.payload or {}
+        for trace in payload.get("traces", []):
+            if "error" in trace:
+                continue
+            common_tail = [
+                trace.get("first_divergence_step"),
+                trace.get("correct_at_buggy_line"),
+                trace.get("final_output_correct"),
+                trace.get("right_answer_wrong_trace"),
+            ]
+            for row in trace.get("rows", []):
+                cells = [("variable", name, cell) for name, cell in row["cells"].items()]
+                cells.append(("next_line", "", row["next_line"]))
+                for kind, name, cell in cells:
+                    writer.writerow([
+                        sess.id, sess.student_identifier, sess.task_id,
+                        ev.timestamp.isoformat(), trace.get("call"),
+                        row["step"], row["lineno"], row["line_text"], row["depth"],
+                        kind, name,
+                        cell.get("student"), cell.get("actual"), cell.get("correct"),
+                        cell.get("prefilled", False),
+                    ] + common_tail)
+            final = trace.get("final_output", {})
+            writer.writerow([
+                sess.id, sess.student_identifier, sess.task_id,
+                ev.timestamp.isoformat(), trace.get("call"),
+                "", "", "", "", "final_output", "",
+                final.get("student"), final.get("actual"), final.get("correct"), False,
+            ] + common_tail)
+
+    buf.seek(0)
+    return StreamingResponse(
+        buf, media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=trace_cells.csv"},
     )
 
 

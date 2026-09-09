@@ -19,6 +19,8 @@ jspm_packages/
 
 # Distribution directories
 dist/
+# CRA production build output (Render builds this itself)
+/build
 
 # Typescript v1 declaration files
 typings/

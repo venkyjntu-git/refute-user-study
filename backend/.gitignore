@@ -78,3 +78,8 @@ idea/
 vscode/
 # macOS specific files:
 DS_Store
+
+.env
+
+# Local SQLite dev database (production uses Supabase via DATABASE_URL)
+refute_study.db

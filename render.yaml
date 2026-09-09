@@ -1,0 +1,71 @@
+# Render Blueprint for the Refute-problem user study.
+#
+# Two services:
+#   refute-study-api  — FastAPI backend, talks to Supabase Postgres
+#   refute-study-web  — CRA static build of the React frontend
+#
+# Deploy: push this file, then Render Dashboard -> New -> Blueprint -> pick this repo.
+#
+# Two values are marked `sync: false`, meaning Render prompts for them at
+# deploy time instead of reading them from this file (so the Supabase password
+# never lands in git):
+#   DATABASE_URL       (api) — the Supabase session-pooler URL from backend/.env
+#   REACT_APP_API_BASE (web) — https://<your-api-service>.onrender.com
+#
+# ALLOWED_ORIGINS on the api must match the web service's public URL once it
+# exists; set it on the first deploy or edit it in the dashboard afterwards.
+
+services:
+  # ---------------------------------------------------------------- backend
+  - type: web
+    name: refute-study-api
+    runtime: python
+    plan: free
+    region: singapore          # same region as the Supabase project (ap-southeast-1)
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    # main.py runs Base.metadata.create_all() on import, so the schema is
+    # created on first boot. seed_data.py is idempotent, so running it on every
+    # boot is safe — and it has to live here rather than in preDeployCommand,
+    # which Render only honours on paid instance types.
+    startCommand: python seed_data.py && uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      # Supabase session pooler URL (postgresql://postgres.<ref>:<pw>@aws-0-...:5432/postgres).
+      # database.py rewrites the scheme to postgresql+psycopg:// automatically.
+      - key: DATABASE_URL
+        sync: false
+      # Comma-separated frontend origins allowed to call this API.
+      - key: ALLOWED_ORIGINS
+        value: https://refute-study-web.onrender.com
+      - key: PYTHONUNBUFFERED
+        value: "1"
+
+  # --------------------------------------------------------------- frontend
+  - type: web
+    name: refute-study-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: build
+    autoDeploy: true
+    envVars:
+      # react-scripts 5 is not tested on Node 22; pin to the last LTS it builds on.
+      - key: NODE_VERSION
+        value: "20.18.0"
+      # Render sets CI=true, which makes CRA treat lint warnings as build errors.
+      - key: CI
+        value: "false"
+      # Full origin of the api service, e.g. https://refute-study-api.onrender.com
+      # (Render's fromService can only supply a bare host, not a scheme, so this
+      # is entered by hand at deploy time.)
+      - key: REACT_APP_API_BASE
+        sync: false
+    routes:
+      # SPA fallback: every non-asset path serves index.html.
+      - type: rewrite
+        source: /*
+        destination: /index.html

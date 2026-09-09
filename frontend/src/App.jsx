@@ -15,7 +15,7 @@ export default function App() {
   const [stage, setStage] = useState(STAGES.INTRO);
   const [session, setSession] = useState(null);
   const [buggyCode, setBuggyCode] = useState(null);
-  const [sampleInputs, setSampleInputs] = useState(null);
+  const [traceTables, setTraceTables] = useState(null);
 
   const stageOrder = [STAGES.IO_PAIRS, STAGES.TRACE, STAGES.COUNTER_EXAMPLE];
   const stageLabel = {
@@ -25,7 +25,8 @@ export default function App() {
   };
 
   return (
-    <div className="app-shell">
+    // The trace table needs more horizontal room than the rest of the flow.
+    <div className={"app-shell" + (stage === STAGES.TRACE ? " wide" : "")}>
       {stage !== STAGES.INTRO && (
         <div className="step-indicator">
           {stageOrder.map((s) => (
@@ -54,9 +55,9 @@ export default function App() {
       {stage === STAGES.IO_PAIRS && session && (
         <Step1IOPairs
           session={session}
-          onCompleted={(code, inputs) => {
+          onCompleted={(code, tables) => {
             setBuggyCode(code);
-            setSampleInputs(inputs);
+            setTraceTables(tables);
             setStage(STAGES.TRACE);
           }}
         />
@@ -66,7 +67,7 @@ export default function App() {
         <Step2Trace
           session={session}
           buggyCode={buggyCode}
-          sampleInputs={sampleInputs}
+          traceTables={traceTables}
           onCompleted={() => setStage(STAGES.COUNTER_EXAMPLE)}
         />
       )}

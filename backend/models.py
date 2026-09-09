@@ -42,6 +42,24 @@ class Task(Base):
     # of call strings, e.g. ["max_of_three(1, 2, 3)", "max_of_three(-1, -5, -2)"]
     trace_sample_inputs = Column(JSON, nullable=False)
 
+    # --- step 2 trace-table configuration (all optional; safe defaults) ---
+    # Line number(s) within buggy_code that carry the bug, e.g. [5]. Used only
+    # for analysis: it lets us score whether the student traced the buggy line
+    # itself correctly, which is the metric that separates "misread the code"
+    # from "read it fine but couldn't construct a counter-example". Null means
+    # that metric is simply not computed for this task.
+    buggy_line_numbers = Column(JSON, nullable=True)
+    # How many leading rows arrive pre-filled as a worked example (scaffold
+    # fading, cf. PLTutor). 1 demonstrates the format without giving anything
+    # away; 0 asks for everything.
+    trace_prefill_steps = Column(Integer, nullable=False, default=1, server_default="1")
+    # When true, drop columns whose value is identical on every row of a trace
+    # (typically parameters that are never reassigned). Those cells are visible
+    # in the call itself and carry no tracing signal, but asking for them is a
+    # uniform rule that leaks nothing, so this is off by default.
+    trace_omit_unchanged_vars = Column(Boolean, nullable=False, default=False,
+                                        server_default="0")
+
     sessions = relationship("StudySession", back_populates="task")
 
 

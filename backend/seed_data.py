@@ -33,7 +33,25 @@ SAMPLE_TASK = dict(
         "        largest = c\n"
         "    return largest\n"
     ),
-    trace_sample_inputs=["max_of_three(1, 2, 3)", "max_of_three(3, 2, 1)"],
+    # Neither sample exposes the bug, per Method.md: step 2 measures tracing
+    # skill, not bug-finding. NOTE this is a change — the previous seed used
+    # max_of_three(1, 2, 3), which DOES expose it (correct 3, buggy 2) and
+    # contradicted Method.md. Swap one of these for a bug-exposing input only
+    # if you want step 2 to prime the student for step 3.
+    trace_sample_inputs=["max_of_three(2, 1, 3)", "max_of_three(3, 2, 1)"],
+    # Line 5 of buggy_code is the `elif` that should be an `if`. Used only for
+    # analysis (scoring the trace at the buggy line), never shown to students.
+    buggy_line_numbers=[5],
+    trace_prefill_steps=1,
+    trace_omit_unchanged_vars=False,
+)
+
+# Fields that describe how step 2 is presented rather than what the task is;
+# safe to refresh on an already-seeded task so an existing dev DB picks up
+# changes without being rebuilt.
+TRACE_CONFIG_FIELDS = (
+    "trace_sample_inputs", "buggy_line_numbers",
+    "trace_prefill_steps", "trace_omit_unchanged_vars",
 )
 
 
@@ -42,7 +60,17 @@ def main():
     try:
         existing = db.query(models.Task).filter_by(title=SAMPLE_TASK["title"]).first()
         if existing:
-            print(f"Task '{SAMPLE_TASK['title']}' already exists (id={existing.id}); skipping.")
+            changed = []
+            for field in TRACE_CONFIG_FIELDS:
+                if getattr(existing, field) != SAMPLE_TASK[field]:
+                    setattr(existing, field, SAMPLE_TASK[field])
+                    changed.append(field)
+            if changed:
+                db.commit()
+                print(f"Task '{SAMPLE_TASK['title']}' (id={existing.id}) already exists; "
+                      f"refreshed trace config: {', '.join(changed)}")
+            else:
+                print(f"Task '{SAMPLE_TASK['title']}' already exists (id={existing.id}); skipping.")
             return
         task = models.Task(**SAMPLE_TASK)
         db.add(task)
