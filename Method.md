@@ -210,7 +210,4 @@ The Step 2 trace scores are what make that analysis decisive rather than
 suggestive. A student who fails Step 3 with `correct_at_buggy_line` false
 misread the code; one who fails it with a fully correct trace understood the
 code and still could not construct a distinguishing input. Those are different
-findings with different teaching implications, and the previous
-output-prediction design could not tell them apart — a student could trace the
-buggy line wrongly and still write the right return value, which
-`right_answer_wrong_trace` now flags.
+findings.
