@@ -15,10 +15,12 @@ async function request(path, options = {}) {
 export const api = {
   listTasks: () => request("/api/tasks"),
 
-  startSession: (student_identifier, task_id) =>
+  listLanguages: () => request("/api/languages"),
+
+  startSession: (student_identifier, institute, language) =>
     request("/api/session", {
       method: "POST",
-      body: JSON.stringify({ student_identifier, task_id }),
+      body: JSON.stringify({ student_identifier, institute, language }),
     }),
 
   markShown: (session_id, step) =>
@@ -33,15 +35,17 @@ export const api = {
       body: JSON.stringify({ session_id, pairs }),
     }),
 
-  submitTraces: (session_id, traces) =>
+  submitTraces: (session_id, traces, data_flow_traces = []) =>
     request("/api/step2/submit", {
       method: "POST",
-      body: JSON.stringify({ session_id, traces }),
+      body: JSON.stringify({ session_id, traces, data_flow_traces }),
     }),
 
-  submitCounterExample: (session_id, call) =>
+  submitCounterExample: (session_id, call, predicted_correct_output, predicted_buggy_output) =>
     request("/api/step3/submit", {
       method: "POST",
-      body: JSON.stringify({ session_id, call }),
+      body: JSON.stringify({
+        session_id, call, predicted_correct_output, predicted_buggy_output,
+      }),
     }),
 };

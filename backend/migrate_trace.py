@@ -18,6 +18,7 @@ def _new_columns(dialect: str) -> dict:
         "buggy_line_numbers": "JSON",
         "trace_prefill_steps": "INTEGER NOT NULL DEFAULT 1",
         "trace_omit_unchanged_vars": f"BOOLEAN NOT NULL DEFAULT {false_literal}",
+        "trace_data_flow_inputs": "JSON",
     }
 
 

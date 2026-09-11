@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from "react";
 import { api } from "../api";
+import { extractFunctionName } from "../utils";
 
-const emptyPair = () => ({ call: "", expected: "" });
+const emptyPair = () => ({ args: "", expected: "" });
 
 export default function Step1IOPairs({ session, onCompleted }) {
   const [pairs, setPairs] = useState([emptyPair(), emptyPair(), emptyPair()]);
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  const funcName = extractFunctionName(session.function_signature);
 
   useEffect(() => {
     // task_description + io_pairs 'shown' events are logged server-side
@@ -24,17 +27,29 @@ export default function Step1IOPairs({ session, onCompleted }) {
   };
 
   const handleSubmit = async () => {
-    if (pairs.some((p) => !p.call.trim() || !p.expected.trim())) {
-      setError("Please fill in all three call/expected-output fields.");
+    if (pairs.some((p) => !p.args.trim() || !p.expected.trim())) {
+      setError("Please fill in all three argument/expected-output fields.");
+      return;
+    }
+    const submissions = pairs.map((p) => ({
+      call: `${funcName}(${p.args.trim()})`,
+      expected: p.expected,
+    }));
+    // Quick client-side check on the raw string; the server does the
+    // authoritative check (it compares parsed calls, so "f(1,2)" and
+    // "f(1, 2)" are also caught as duplicates there).
+    const calls = submissions.map((p) => p.call);
+    if (new Set(calls).size < calls.length) {
+      setError("Please use three different arguments — at least two of your pairs are identical.");
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      const res = await api.submitIOPairs(session.session_id, pairs);
+      const res = await api.submitIOPairs(session.session_id, submissions);
       setResults(res);
       if (res.all_correct) {
-        onCompleted(res.buggy_code, res.trace_tables);
+        onCompleted(res.buggy_code, res.trace_tables, res.data_flow_tables);
       }
     } catch (e) {
       setError(e.message);
@@ -52,21 +67,25 @@ export default function Step1IOPairs({ session, onCompleted }) {
 
       <h3 style={{ marginTop: 28 }}>Step 1: Give three input/output pairs</h3>
       <p style={{ color: "#555", fontSize: 14 }}>
-        Write each call exactly as you'd call the function (e.g.{" "}
-        <code>{session.function_signature.replace("def ", "").replace(":", "")}</code>-style
-        call with concrete values), and the output you expect it to produce.
+        Give the arguments for each call (comma-separated, in order) and the
+        output you expect it to produce.
       </p>
 
       {pairs.map((pair, idx) => (
         <div className="pair-row" key={idx}>
           <div>
             <label>Call #{idx + 1}</label>
-            <input
-              type="text"
-              placeholder="e.g. max_of_three(1, 2, 3)"
-              value={pair.call}
-              onChange={(e) => updatePair(idx, "call", e.target.value)}
-            />
+            <div className="call-input">
+              <code className="call-fixed">{funcName}(</code>
+              <input
+                type="text"
+                placeholder="e.g. 1, 2, 3"
+                aria-label={`Call #${idx + 1} arguments`}
+                value={pair.args}
+                onChange={(e) => updatePair(idx, "args", e.target.value)}
+              />
+              <code className="call-fixed">)</code>
+            </div>
           </div>
           <div>
             <label>Expected output</label>
@@ -94,7 +113,7 @@ export default function Step1IOPairs({ session, onCompleted }) {
                 <>
                   <span className="result-badge incorrect">COULDN'T RUN</span>
                   <div className="result-hint">
-                    Check the function name and the number of arguments.
+                    Check the number and format of your arguments.
                   </div>
                 </>
               ) : (

@@ -16,6 +16,7 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [buggyCode, setBuggyCode] = useState(null);
   const [traceTables, setTraceTables] = useState(null);
+  const [dataFlowTables, setDataFlowTables] = useState(null);
 
   const stageOrder = [STAGES.IO_PAIRS, STAGES.TRACE, STAGES.COUNTER_EXAMPLE];
   const stageLabel = {
@@ -55,9 +56,10 @@ export default function App() {
       {stage === STAGES.IO_PAIRS && session && (
         <Step1IOPairs
           session={session}
-          onCompleted={(code, tables) => {
+          onCompleted={(code, tables, dataFlowTables) => {
             setBuggyCode(code);
             setTraceTables(tables);
+            setDataFlowTables(dataFlowTables);
             setStage(STAGES.TRACE);
           }}
         />
@@ -68,12 +70,13 @@ export default function App() {
           session={session}
           buggyCode={buggyCode}
           traceTables={traceTables}
+          dataFlowTables={dataFlowTables}
           onCompleted={() => setStage(STAGES.COUNTER_EXAMPLE)}
         />
       )}
 
       {stage === STAGES.COUNTER_EXAMPLE && session && (
-        <Step3CounterExample session={session} />
+        <Step3CounterExample session={session} buggyCode={buggyCode} />
       )}
     </div>
   );

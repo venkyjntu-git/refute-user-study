@@ -9,8 +9,9 @@ Base.metadata.create_all(bind=engine)
 
 SAMPLE_TASK = dict(
     title="max_of_three",
+    language="python",
     description=(
-        "Write a function `max_of_three(a, b, c)` that takes three integers "
+        "Consider a function `max_of_three(a, b, c)` that takes three integers "
         "and returns the largest of the three."
     ),
     function_signature="def max_of_three(a, b, c):",
@@ -33,12 +34,14 @@ SAMPLE_TASK = dict(
         "        largest = c\n"
         "    return largest\n"
     ),
-    # Neither sample exposes the bug, per Method.md: step 2 measures tracing
-    # skill, not bug-finding. NOTE this is a change — the previous seed used
-    # max_of_three(1, 2, 3), which DOES expose it (correct 3, buggy 2) and
-    # contradicted Method.md. Swap one of these for a bug-exposing input only
-    # if you want step 2 to prime the student for step 3.
-    trace_sample_inputs=["max_of_three(2, 1, 3)", "max_of_three(3, 2, 1)"],
+    # One control-flow input, one data-flow input — both instructor-provided,
+    # and they must be different calls from each other (see trace_table.py's
+    # module docstring for why: the data-flow table reveals its call's
+    # execution path outright, which is only safe because it isn't the call
+    # the control-flow question is hiding). Neither exposes the bug, per
+    # Method.md: step 2 measures tracing skill, not bug-finding.
+    trace_sample_inputs=["max_of_three(2, 1, 3)"],
+    trace_data_flow_inputs=["max_of_three(1, 5, 3)"],
     # Line 5 of buggy_code is the `elif` that should be an `if`. Used only for
     # analysis (scoring the trace at the buggy line), never shown to students.
     buggy_line_numbers=[5],
@@ -50,7 +53,7 @@ SAMPLE_TASK = dict(
 # safe to refresh on an already-seeded task so an existing dev DB picks up
 # changes without being rebuilt.
 TRACE_CONFIG_FIELDS = (
-    "trace_sample_inputs", "buggy_line_numbers",
+    "trace_sample_inputs", "trace_data_flow_inputs", "buggy_line_numbers",
     "trace_prefill_steps", "trace_omit_unchanged_vars",
 )
 

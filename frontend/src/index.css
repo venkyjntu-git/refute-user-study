@@ -55,6 +55,18 @@ input[type="text"] {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }
 
+/* Home-page institute/language pickers (the trace table has its own,
+   narrower `select` rule further down). */
+.card > select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  background: #fff;
+}
+
 button {
   background: #2563eb;
   color: white;
@@ -74,6 +86,25 @@ button:disabled {
 
 button.secondary {
   background: #6b7280;
+}
+
+/* Step 1's call inputs: function name and parens are fixed decoration, not
+   something the student types — only the arguments are editable. */
+.call-input {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.call-fixed {
+  font-size: 14px;
+  color: #4b5563;
+  white-space: nowrap;
+}
+
+.call-input input[type="text"] {
+  flex: 1;
+  min-width: 0;
 }
 
 .pair-row {
@@ -167,6 +198,16 @@ button.secondary {
   border-top: 1px solid #eee;
 }
 
+/* Marks the boundary between the control-flow and data-flow question
+   groups — a heavier rule than a plain .trace-block divider so the two
+   different question TYPES read as distinct sections, not just more of
+   the same list of sample inputs. */
+.section-divider {
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 3px solid #d1d5db;
+}
+
 .table-scroll {
   overflow-x: auto;
 }
@@ -208,16 +249,22 @@ table.trace-table input[type="text"] {
   padding: 5px 7px;
 }
 
-table.trace-table td:nth-child(2) {
+/* The "Line" column (source line + code) shouldn't wrap mid-statement. */
+table.trace-table td:nth-child(1) {
   white-space: nowrap;
 }
 
-table.trace-table select {
+table.trace-table input[type="text"]:disabled {
+  background: #f3f4f6;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+/* The "how many times does this run?" count — narrower than a text input,
+   since it's realistically at most a couple of digits. */
+table.trace-table input[type="number"] {
+  width: 70px;
   padding: 5px 7px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  font-size: 14px;
-  font-family: inherit;
 }
 
 .not-in-scope {
