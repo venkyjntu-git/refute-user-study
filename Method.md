@@ -57,6 +57,20 @@ error text are still recorded server-side for analysis. This mirrors the
 no-feedback rule in Step 2, for the same reason — later steps have to measure
 unaided reasoning.
 
+**A scaffold for students who get stuck.** After a wrong attempt, the
+student can request two worked examples — real `(call, correct-output)`
+pairs, author-curated per task. This is a deliberate, one-time exception to
+"the reference implementation's output is never shown": the point of Step 1
+is to test spec comprehension, not to strand a student who's genuinely
+confused with no way forward. Once shown, the two example calls are
+permanently off-limits as the student's own pairs for the rest of the
+session (server-authoritative, same canonical-call comparison as the
+pairwise-duplicate check above) — otherwise the scaffold would let a student
+clear the gate by simply copying what they were just handed, collapsing the
+measurement back to "did they copy correctly," not "do they understand the
+spec." Whether and how often a student requests this is itself recorded for
+analysis, alongside how many attempts came before and after.
+
 **What this measures:** whether the student has correctly internalized the
 specification, independent of any code at all — and, through the attempt
 count, how readily they got there unaided. If a student can't produce
@@ -245,15 +259,38 @@ diverged), `correct_at_buggy_line`, `final_output_correct`,
 just without any count/reachability field, since there's nothing left to
 guess about which lines ran.
 
+#### Mutation reflection (optional)
+
+A task author can add a third, independent panel: one specific line of the
+buggy code shown hypothetically changed to different text, with a free-text
+prompt asking the student to reason about the result (e.g. "describe how
+the behavior changes" or "how many times would line N run now"). Unlike
+control flow and data flow, this isn't scored against a computable ground
+truth — there's no single correct free-text answer — so it's purely
+collect-only: recorded for qualitative analysis, never graded, and (unlike
+every count/value cell above) not even required by the server, only by the
+frontend before it will submit. It's a genuinely different kind of
+comprehension probe from the other two: instead of asking the student to
+trace the code as given, it asks them to reason about a code they're shown
+but never actually run — closer to "do you understand *why* this line
+matters" than "can you mechanically trace it."
+
 ---
 
 ### Step 3 — Find a counter-example (can they construct a distinguishing input?)
 
 The task description and the buggy code (both already seen in Steps 1 and
-2) are shown again here, so the student isn't relying on memory while
-constructing the input. As in Steps 1 and 3's call boxes elsewhere, the
-function name and parentheses are fixed — the student only types the
-arguments.
+2) are shown again here, along with a recap of the student's **own**
+answers from both — their three I/O pairs, their control-flow counts,
+their data-flow values, and their mutation-reflection response if the task
+has one — so the student isn't relying on memory while constructing the
+input, and can see their own prior reasoning laid out next to the code and
+spec they're now trying to refute. This recap is built by individually
+allowlisting fields off the (much richer) stored analysis payloads — never
+a correctness/ground-truth field, matching Step 2's zero-feedback design:
+a student never learns whether their Step 2 answers were right, not even
+retroactively here. As in Steps 1 and 3's call boxes elsewhere, the function
+name and parentheses are fixed — the student only types the arguments.
 
 The student supplies one input of their own choosing, and **before either
 real output is revealed**, predicts both: what the *correct* code returns
@@ -332,9 +369,16 @@ submission's content and correctness. This lets the analysis compute, per
 student and per task:
 
 - time spent forming I/O pairs (spec comprehension time)
-- number of attempts needed to get all three I/O pairs right
+- number of attempts needed to get all three I/O pairs right, and whether
+  (and after how many attempts) the student requested the two worked
+  examples — a student who never requests them but still needs many
+  attempts is struggling differently from one who requests them early and
+  converges quickly right after
 - time spent tracing the buggy code (one attempt, so this is a clean
   single-interval measure), and the per-cell trace scores listed above
+- the mutation-reflection response, if the task has one — qualitative, not
+  scored, but available for coding/analysis alongside the quantitative
+  measures above
 - time spent finding a counter-example, and how many attempts it took
 - whether the *first* attempt was `fully_successful` (valid input AND both
   predictions right) — the real proxy for how directly the student reasoned

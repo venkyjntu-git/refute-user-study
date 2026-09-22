@@ -77,6 +77,26 @@ class Task(Base):
     trace_omit_unchanged_vars = Column(Boolean, nullable=False, default=False,
                                         server_default="0")
 
+    # --- step 1 example-reveal config (optional, additive) ---
+    # Author-curated calls, run against correct_code (never buggy_code —
+    # Step 1 is pure spec comprehension). Only the first 2 are ever used.
+    # Nullable/empty means "no reveal available for this task".
+    io_example_inputs = Column(JSON, nullable=True)
+
+    # --- step 2 mutation-question config (optional, additive) ---
+    # A free-text comprehension prompt about a specific line of buggy_code —
+    # mutation_prompt is what gates whether the panel shows at all.
+    # mutation_new_line_text is itself optional: when set, the prompt is
+    # about the line hypothetically CHANGED to this text ("describe the
+    # resulting code"); when left null, the prompt is about the line AS
+    # GIVEN instead (e.g. "how many times will line N execute?" — the
+    # prompt names its own line number in that case). mutation_line_number
+    # is kept either way, mainly for analysis. Collect-only, like the rest
+    # of Step 2 — no auto-grading, doesn't gate progression.
+    mutation_line_number = Column(Integer, nullable=True)
+    mutation_new_line_text = Column(Text, nullable=True)
+    mutation_prompt = Column(Text, nullable=True)
+
     sessions = relationship("StudySession", back_populates="task")
 
 
@@ -96,6 +116,10 @@ class StudySession(Base):
     io_pairs_completed = Column(Boolean, default=False)
     buggy_trace_completed = Column(Boolean, default=False)
     counter_example_completed = Column(Boolean, default=False)
+    # One-time transition, not a completion gate: once the Step 1 example
+    # reveal has fired for this session it stays revealed, and submit_io_pairs
+    # permanently bars reusing either revealed call for the rest of the session.
+    io_examples_shown = Column(Boolean, default=False)
 
     task = relationship("Task", back_populates="sessions")
     events = relationship("StepEvent", back_populates="session")

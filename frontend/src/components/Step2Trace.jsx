@@ -39,13 +39,15 @@ function blankDataFlowAnswers(tables) {
   }));
 }
 
-export default function Step2Trace({ session, buggyCode, traceTables, dataFlowTables, onCompleted }) {
+export default function Step2Trace({ session, buggyCode, traceTables, dataFlowTables, mutation, onCompleted }) {
   const tables = useMemo(() => traceTables || [], [traceTables]);
   const dfTables = useMemo(() => dataFlowTables || [], [dataFlowTables]);
   const [answers, setAnswers] = useState(() => blankAnswers(tables));
   const [dfAnswers, setDfAnswers] = useState(() => blankDataFlowAnswers(dfTables));
+  const [mutationResponse, setMutationResponse] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const hasMutation = Boolean(mutation && mutation.prompt);
 
   useEffect(() => {
     api.markShown(session.session_id, "buggy_trace").catch(() => {});
@@ -102,6 +104,9 @@ export default function Step2Trace({ session, buggyCode, traceTables, dataFlowTa
       // return-value box is required.
       if (!dfAnswers[t].final_output.trim()) return `${dfTables[t].call}: return value`;
     }
+    if (hasMutation && !mutationResponse.trim()) {
+      return "the reflection question below";
+    }
     return null;
   };
 
@@ -138,7 +143,10 @@ export default function Step2Trace({ session, buggyCode, traceTables, dataFlowTa
           })),
         final_output: dfAnswers[t].final_output,
       }));
-      await api.submitTraces(session.session_id, traces, dataFlowTraces);
+      await api.submitTraces(
+        session.session_id, traces, dataFlowTraces,
+        hasMutation ? mutationResponse.trim() : null,
+      );
       onCompleted();
     } catch (e) {
       setError(e.message);
@@ -160,6 +168,29 @@ export default function Step2Trace({ session, buggyCode, traceTables, dataFlowTa
         your answers were right — just do your best and move on.
       </p>
       <pre className="code-block">{numberedCode(buggyCode)}</pre>
+
+      {hasMutation && (
+        <div className="trace-block">
+          {/* mutation.newLineText is optional: some mutation questions ask
+              about the code AS GIVEN (e.g. an execution-count question that
+              already names its own line number), not a hypothetical change —
+              only show the "changed to" framing when there's actually a
+              replacement line to show. */}
+          <h3>{mutation.newLineText ? "Now, suppose the code changes" : "One more question about the code"}</h3>
+          {mutation.newLineText && (
+            <>
+              <p>Line {mutation.lineNumber} is changed to:</p>
+              <pre className="code-block">{mutation.newLineText}</pre>
+            </>
+          )}
+          <p>{mutation.prompt}</p>
+          <textarea
+            value={mutationResponse}
+            onChange={(e) => setMutationResponse(e.target.value)}
+            aria-label="Mutation question response"
+          />
+        </div>
+      )}
 
       {tables.map((table, t) => (
         <div key={table.call} className="trace-block">

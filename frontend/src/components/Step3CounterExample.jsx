@@ -2,18 +2,25 @@ import React, { useEffect, useState } from "react";
 import { api } from "../api";
 import { extractFunctionName } from "../utils";
 
-export default function Step3CounterExample({ session, buggyCode }) {
+export default function Step3CounterExample({ session, buggyCode, onNext, nextError, hasNextTask }) {
   const [args, setArgs] = useState("");
   const [predictedCorrect, setPredictedCorrect] = useState("");
   const [predictedBuggy, setPredictedBuggy] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [myWork, setMyWork] = useState(null);
 
   const funcName = extractFunctionName(session.function_signature);
 
   useEffect(() => {
     api.markShown(session.session_id, "counter_example").catch(() => {});
+    // Recap of the student's own Step 1 + Step 2 answers, fetched fresh
+    // from the server rather than kept in lifted component state — robust
+    // to a page refresh between steps, and guaranteed to contain nothing
+    // beyond what the student themselves submitted (see get_my_work's
+    // allowlisting in main.py).
+    api.getMyWork(session.session_id).then(setMyWork).catch(() => {});
   }, [session.session_id]);
 
   const handleSubmit = async () => {
@@ -49,6 +56,76 @@ export default function Step3CounterExample({ session, buggyCode }) {
 
       <h3>Buggy code</h3>
       <pre className="code-block">{buggyCode}</pre>
+
+      {myWork && (
+        <>
+          <h3 className="section-divider">Your Step 1 answers</h3>
+          {myWork.io_pairs.map((p, idx) => (
+            <div className="result-item" key={idx}>{p.call} → {p.expected}</div>
+          ))}
+
+          <h3 className="section-divider">Your Step 2 answers</h3>
+          {myWork.control_flow.map((t) => (
+            <div className="trace-block" key={t.call}>
+              <h4>Control flow: <code>{t.call}</code></h4>
+              <div className="table-scroll">
+                <table className="trace-table">
+                  <thead>
+                    <tr><th>Line</th><th>Your count</th></tr>
+                  </thead>
+                  <tbody>
+                    {t.rows.map((r) => (
+                      <tr key={r.lineno}>
+                        <td><code>{r.lineno}: {r.line_text}</code></td>
+                        <td>{r.student_count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p>Your answer for the return value: <code>{t.student_final_output}</code></p>
+            </div>
+          ))}
+          {myWork.data_flow.map((t) => (
+            <div className="trace-block" key={t.call}>
+              <h4>Data flow: <code>{t.call}</code></h4>
+              <div className="table-scroll">
+                <table className="trace-table">
+                  <thead>
+                    <tr>
+                      <th>Step</th>
+                      <th>Line</th>
+                      {t.rows[0] && Object.keys(t.rows[0].vars).map((n) => (
+                        <th key={n}><code>{n}</code></th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {t.rows.map((r) => (
+                      <tr key={r.step}>
+                        <td>{r.step}</td>
+                        <td><code>{r.lineno}: {r.line_text}</code></td>
+                        {Object.entries(r.vars).map(([n, v]) => <td key={n}>{v}</td>)}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p>Your answer for the return value: <code>{t.student_final_output}</code></p>
+            </div>
+          ))}
+          {myWork.mutation_prompt && (
+            <div className="trace-block">
+              <h4>Your reflection question response</h4>
+              {myWork.mutation_new_line_text && (
+                <p>Line {myWork.mutation_line_number} changed to: <code>{myWork.mutation_new_line_text}</code></p>
+              )}
+              <p>{myWork.mutation_prompt}</p>
+              <p className="result-item">{myWork.mutation_response}</p>
+            </div>
+          )}
+        </>
+      )}
 
       <p>
         Give one input for which the buggy code produces a <em>different</em>{" "}
@@ -113,7 +190,10 @@ export default function Step3CounterExample({ session, buggyCode }) {
           {result.fully_successful ? (
             <div className="success-banner">
               Confirmed — this is a valid counter-example, and both of your
-              predictions were right. Study task complete. Thank you!
+              predictions were right.{" "}
+              {hasNextTask
+                ? "This problem is complete."
+                : "You've completed all problems in this study. Thank you!"}
             </div>
           ) : result.is_counter_example ? (
             <div className="notice">
@@ -129,9 +209,20 @@ export default function Step3CounterExample({ session, buggyCode }) {
         </div>
       )}
 
-      <button onClick={handleSubmit} disabled={loading}>
-        {loading ? "Checking..." : "Submit counter-example"}
-      </button>
+      {!(result && result.fully_successful) && (
+        <button onClick={handleSubmit} disabled={loading}>
+          {loading ? "Checking..." : "Submit counter-example"}
+        </button>
+      )}
+
+      {result && result.fully_successful && (
+        <>
+          {nextError && <div className="error-banner">{nextError}</div>}
+          <button onClick={onNext}>
+            {hasNextTask ? "Next problem" : "Finish study"}
+          </button>
+        </>
+      )}
     </div>
   );
 }

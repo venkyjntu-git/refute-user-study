@@ -9,6 +9,8 @@ export default function Step1IOPairs({ session, onCompleted }) {
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [examples, setExamples] = useState(null);
+  const [examplesLoading, setExamplesLoading] = useState(false);
 
   const funcName = extractFunctionName(session.function_signature);
 
@@ -43,18 +45,45 @@ export default function Step1IOPairs({ session, onCompleted }) {
       setError("Please use three different arguments — at least two of your pairs are identical.");
       return;
     }
+    // Same idea, mirroring the server's authoritative exclusion check: once
+    // the two worked examples are revealed, reusing one as your own pair
+    // would trivially satisfy the gate without demonstrating anything.
+    if (examples) {
+      const exampleCalls = examples.map((ex) => ex.call);
+      if (calls.some((c) => exampleCalls.includes(c))) {
+        setError("Please use a different input — you can't reuse one of the revealed example calls.");
+        return;
+      }
+    }
     setLoading(true);
     setError(null);
     try {
       const res = await api.submitIOPairs(session.session_id, submissions);
       setResults(res);
       if (res.all_correct) {
-        onCompleted(res.buggy_code, res.trace_tables, res.data_flow_tables);
+        onCompleted(res.buggy_code, res.trace_tables, res.data_flow_tables, {
+          lineNumber: res.mutation_line_number,
+          newLineText: res.mutation_new_line_text,
+          prompt: res.mutation_prompt,
+        });
       }
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRevealExamples = async () => {
+    setExamplesLoading(true);
+    setError(null);
+    try {
+      const res = await api.revealExamples(session.session_id);
+      setExamples(res.examples);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setExamplesLoading(false);
     }
   };
 
@@ -132,6 +161,26 @@ export default function Step1IOPairs({ session, onCompleted }) {
               At least one pair is incorrect. Please revise and resubmit.
             </div>
           )}
+        </div>
+      )}
+
+      {/* Offered only after a wrong attempt, only if the task has examples
+          configured, and only until the student actually requests them —
+          once shown, the two calls stay visible and reusing either is
+          barred (client-side here, authoritatively on the server). */}
+      {results && !results.all_correct && results.examples_available && !examples && (
+        <button className="secondary" onClick={handleRevealExamples} disabled={examplesLoading}>
+          {examplesLoading ? "Loading..." : "Show me two example calls"}
+        </button>
+      )}
+
+      {examples && (
+        <div className="notice" style={{ marginTop: 12 }}>
+          Here are two worked examples of the correct behavior. You can't use
+          either of these as one of your own pairs.
+          {examples.map((ex, idx) => (
+            <div className="result-item" key={idx}>{ex.call} → {ex.expected}</div>
+          ))}
         </div>
       )}
 

@@ -55,6 +55,17 @@ input[type="text"] {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }
 
+textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  min-height: 80px;
+  resize: vertical;
+}
+
 /* Home-page institute/language pickers (the trace table has its own,
    narrower `select` rule further down). */
 .card > select {
@@ -147,8 +158,16 @@ button.secondary {
 
 .step-indicator {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 24px;
+}
+
+.task-progress {
+  flex-basis: 100%;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
 }
 
 .step-dot {

@@ -5,7 +5,13 @@ from pydantic import BaseModel, Field
 class StartSessionRequest(BaseModel):
     student_identifier: str
     institute: str
-    language: str  # "python" | "c" | "ocaml" — picks the first Task with this language
+    language: str  # "python" | "c" | "ocaml"
+    # Optional explicit task — when omitted, picks the first Task for
+    # `language` (lowest id), same as before. The frontend sends this
+    # explicitly when advancing to the next task in a multi-task study run
+    # (see App.jsx's handleNextTask) — the home page's initial "Start" still
+    # omits it.
+    task_id: Optional[int] = None
 
 
 class StartSessionResponse(BaseModel):
@@ -15,6 +21,13 @@ class StartSessionResponse(BaseModel):
     language: str
     description: str
     function_signature: str
+    # Echoed back so the frontend can start the NEXT task's session with the
+    # same identity without having to separately thread student_identifier/
+    # institute down from TaskIntro — this is the student's own submitted
+    # data, already stored server-side per session, so echoing it back isn't
+    # a new leak.
+    student_identifier: str
+    institute: str
 
 
 class MarkShownRequest(BaseModel):
@@ -128,6 +141,27 @@ class Step1SubmitResponse(BaseModel):
     trace_sample_inputs: Optional[List[str]] = None
     trace_tables: Optional[List[TraceTable]] = None
     data_flow_tables: Optional[List[DataFlowTable]] = None
+    # Set on EVERY response (correct or not) so the frontend knows whether to
+    # ever offer the "show me examples" button, independent of this
+    # particular attempt's outcome.
+    examples_available: bool = False
+    # Step 2's mutation-question config — rides on the same "Step 1 unlocked"
+    # reveal as buggy_code/trace_tables, since it's shown alongside the buggy
+    # code on Step 2. All three null = task has no mutation question.
+    mutation_line_number: Optional[int] = None
+    mutation_new_line_text: Optional[str] = None
+    mutation_prompt: Optional[str] = None
+
+
+class Step1ExamplesRequest(BaseModel):
+    session_id: int
+
+
+class Step1ExamplesResponse(BaseModel):
+    # Reuses IOPair (call + expected) — `expected` here IS the real output of
+    # task.correct_code for this author-curated call. Deliberately an oracle,
+    # once, after a wrong attempt — see reveal_io_examples in main.py.
+    examples: List[IOPair]
 
 
 class TraceRowAnswer(BaseModel):
@@ -156,6 +190,11 @@ class Step2SubmitRequest(BaseModel):
     session_id: int
     traces: List[TraceAnswer]
     data_flow_traces: List[DataFlowAnswer] = []
+    # Free-text answer to the Step 2 mutation-question panel (None/omitted
+    # when the task has no mutation_prompt configured). Collect-only, like
+    # everything else in Step 2 — no ground truth to grade free text
+    # against, so this is never scored, just stored for later analysis.
+    mutation_response: Optional[str] = None
 
 
 class Step2SubmitResponse(BaseModel):
@@ -214,3 +253,58 @@ class Step3SubmitResponse(BaseModel):
     fully_successful: bool = False
     error: Optional[str] = None
     attempt_number: int
+
+
+# ---------------------------------------------------------------------------
+# Step 3 "your prior work" recap — echoes the student's OWN submitted answers
+# from Steps 1 and 2 back to them, and nothing else. Every field below is
+# hand-picked from the much richer stored StepEvent payloads (see
+# main.py's get_my_work) — deliberately a narrower shape than what's stored,
+# so a ground-truth/correctness field newly added to grade()'s output later
+# can't silently start leaking through here.
+# ---------------------------------------------------------------------------
+
+class MyWorkIOPair(BaseModel):
+    call: str
+    expected: str
+
+
+class MyWorkTraceRow(BaseModel):
+    lineno: int
+    line_text: str
+    student_count: Optional[int] = None
+
+
+class MyWorkControlFlowTrace(BaseModel):
+    call: str
+    rows: List[MyWorkTraceRow]
+    student_final_output: Optional[str] = None
+
+
+class MyWorkDataFlowRow(BaseModel):
+    step: int
+    lineno: int
+    line_text: str
+    vars: Dict[str, Optional[str]]   # the student's own submitted values only
+
+
+class MyWorkDataFlowTrace(BaseModel):
+    call: str
+    rows: List[MyWorkDataFlowRow]
+    student_final_output: Optional[str] = None
+
+
+class Step3MyWorkRequest(BaseModel):
+    session_id: int
+
+
+class Step3MyWorkResponse(BaseModel):
+    io_pairs: List[MyWorkIOPair]
+    control_flow: List[MyWorkControlFlowTrace]
+    data_flow: List[MyWorkDataFlowTrace]
+    # From the TASK, not the stored payload — this is task-authored content
+    # the student already saw during Step 2, not a secret.
+    mutation_line_number: Optional[int] = None
+    mutation_new_line_text: Optional[str] = None
+    mutation_prompt: Optional[str] = None
+    mutation_response: Optional[str] = None   # the student's own free text

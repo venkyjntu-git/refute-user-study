@@ -115,17 +115,26 @@ def _next_attempt_number(db: Session, session_id: int, step: models.StepName) ->
 
 @app.post("/api/session", response_model=schemas.StartSessionResponse)
 def start_session(req: schemas.StartSessionRequest, db: Session = Depends(get_db)):
-    # The home page picks a language, not a specific task: load the first
-    # task authored for that language (lowest id) rather than making the
-    # student/admin pick a task_id by hand.
-    task = (
-        db.query(models.Task)
-        .filter(models.Task.language == req.language)
-        .order_by(models.Task.id)
-        .first()
-    )
-    if not task:
-        raise HTTPException(404, f"no tasks available yet for language '{req.language}'")
+    if req.task_id is not None:
+        # Explicit task — used when the frontend advances to the next task
+        # in a multi-task study run (see App.jsx's handleNextTask).
+        task = db.query(models.Task).get(req.task_id)
+        if not task:
+            raise HTTPException(404, "task not found")
+        if task.language != req.language:
+            raise HTTPException(400, f"task {req.task_id} is not a '{req.language}' task")
+    else:
+        # The home page picks a language, not a specific task: load the
+        # first task authored for that language (lowest id) rather than
+        # making the student/admin pick a task_id by hand.
+        task = (
+            db.query(models.Task)
+            .filter(models.Task.language == req.language)
+            .order_by(models.Task.id)
+            .first()
+        )
+        if not task:
+            raise HTTPException(404, f"no tasks available yet for language '{req.language}'")
 
     session = models.StudySession(
         student_identifier=req.student_identifier,
@@ -147,6 +156,8 @@ def start_session(req: schemas.StartSessionRequest, db: Session = Depends(get_db
         language=task.language,
         description=task.description,
         function_signature=task.function_signature,
+        student_identifier=req.student_identifier,
+        institute=req.institute,
     )
 
 
@@ -192,6 +203,12 @@ def _attach_trace_step(resp: schemas.Step1SubmitResponse, task: models.Task) -> 
         for call in (task.trace_data_flow_inputs or [])
     ]
 
+    # Step 2's mutation-question config rides on this same reveal — the
+    # student needs it right when they first see the buggy code.
+    resp.mutation_line_number = task.mutation_line_number
+    resp.mutation_new_line_text = task.mutation_new_line_text
+    resp.mutation_prompt = task.mutation_prompt
+
 
 # ---------------------------------------------------------------------------
 # step 1: three I/O pairs, checked against correct code
@@ -212,6 +229,20 @@ def submit_io_pairs(req: schemas.Step1SubmitRequest, db: Session = Depends(get_d
     canonical_calls = [sandbox.canonical_call(p.call) for p in req.pairs]
     if len(set(canonical_calls)) < len(canonical_calls):
         raise HTTPException(400, "please use three different calls — at least two of your pairs use the same input")
+
+    # Once the student has requested the two worked examples (see
+    # reveal_io_examples below), reusing one of those exact calls as their
+    # own pair would trivially satisfy the gate without demonstrating
+    # anything — permanently excluded for the rest of this session.
+    if session.io_examples_shown:
+        excluded = {sandbox.canonical_call(c) for c in (task.io_example_inputs or [])[:2]}
+        reused = [p.call for p, cc in zip(req.pairs, canonical_calls) if cc in excluded]
+        if reused:
+            raise HTTPException(
+                400,
+                "please use a different input — you can't reuse a revealed "
+                "example call: " + ", ".join(reused),
+            )
 
     results: List[schemas.PairResult] = []
     for pair in req.pairs:
@@ -250,6 +281,7 @@ def submit_io_pairs(req: schemas.Step1SubmitRequest, db: Session = Depends(get_d
 
     resp = schemas.Step1SubmitResponse(
         all_correct=all_correct, results=public_results, attempt_number=attempt_number,
+        examples_available=bool(task.io_example_inputs),
     )
 
     if all_correct and not session.io_pairs_completed:
@@ -263,6 +295,54 @@ def submit_io_pairs(req: schemas.Step1SubmitRequest, db: Session = Depends(get_d
         _attach_trace_step(resp, task)
 
     return resp
+
+
+@app.post("/api/step1/examples", response_model=schemas.Step1ExamplesResponse)
+def reveal_io_examples(req: schemas.Step1ExamplesRequest, db: Session = Depends(get_db)):
+    """
+    Unlocks after the student's first wrong Step 1 submission: reveals the
+    task's two curated (call, correct-output) examples. This is a deliberate
+    oracle — unlike the rest of the app, the real reference-implementation
+    output IS shown here — but only for two author-chosen calls, only after
+    a wrong attempt, and reusing either as one of the student's own pairs is
+    then permanently excluded (see submit_io_pairs).
+    """
+    session = _get_session_or_404(db, req.session_id)
+    task = session.task
+    if not task.io_example_inputs:
+        raise HTTPException(400, "no examples configured for this task")
+
+    if not session.io_examples_shown:
+        had_wrong_attempt = (
+            db.query(models.StepEvent.id)
+            .filter(
+                models.StepEvent.session_id == session.id,
+                models.StepEvent.step == models.StepName.io_pairs,
+                models.StepEvent.event_type == models.EventType.submitted,
+                models.StepEvent.is_correct.is_(False),
+            )
+            .first() is not None
+        )
+        if not had_wrong_attempt:
+            raise HTTPException(400, "examples unlock only after an incorrect submission")
+        session.io_examples_shown = True
+        db.commit()
+        _log_event(db, session.id, models.StepName.io_pairs, models.EventType.shown,
+                    payload={"io_examples_revealed": True})
+    # else: already shown earlier this session — idempotent re-fetch (e.g.
+    # after a page refresh) just returns the same two examples again.
+
+    examples = []
+    for call in task.io_example_inputs[:2]:
+        result = sandbox.run_call(task.correct_code, call)
+        if result.ok:
+            examples.append(schemas.IOPair(call=call, expected=result.value_repr))
+        else:
+            # Misconfigured task content, not a security issue — same
+            # warn-don't-fail posture as _attach_trace_step's overlap check.
+            print(f"WARNING: task {task.id} io_example_inputs call {call!r} "
+                  f"could not run: {result.error}")
+    return schemas.Step1ExamplesResponse(examples=examples)
 
 
 # ---------------------------------------------------------------------------
@@ -304,6 +384,9 @@ def submit_trace(req: schemas.Step2SubmitRequest, db: Session = Depends(get_db))
         payload={
             "traces": graded, "summary": summary,
             "data_flow_traces": data_flow_graded, "data_flow_summary": data_flow_summary,
+            # Free text, collect-only — never graded (no ground truth to
+            # check it against), None when the task has no mutation_prompt.
+            "mutation_response": req.mutation_response,
         },
     )
 
@@ -318,8 +401,112 @@ def submit_trace(req: schemas.Step2SubmitRequest, db: Session = Depends(get_db))
 
 
 # ---------------------------------------------------------------------------
-# step 3 (UI): submit the counter-example itself
+# step 3 (UI): recap the student's own Step 1 + Step 2 work, then refute
 # ---------------------------------------------------------------------------
+
+@app.post("/api/step3/my_work", response_model=schemas.Step3MyWorkResponse)
+def get_my_work(req: schemas.Step3MyWorkRequest, db: Session = Depends(get_db)):
+    """
+    Echoes the student's OWN submitted answers from Steps 1 and 2 back to
+    them, and only those — every field returned here is explicitly
+    allowlisted off the much richer stored StepEvent payloads (see the
+    comments below), never passed through wholesale, specifically so this
+    can never leak a ground-truth/correctness field. Step 2 is single-attempt
+    zero-feedback; that has to hold here too, not just in the Step 2 response.
+    """
+    session = _get_session_or_404(db, req.session_id)
+    if not session.buggy_trace_completed:
+        raise HTTPException(400, "complete steps 1 and 2 first")
+    task = session.task
+
+    # Step 1: most recent CORRECT io_pairs submission — not "first correct",
+    # since a student could keep experimenting with Step 1 after unlocking
+    # it (nothing stops resubmission once io_pairs_completed is set), and we
+    # want their latest winning set, not a stale one.
+    io_event = (
+        db.query(models.StepEvent)
+        .filter(
+            models.StepEvent.session_id == req.session_id,
+            models.StepEvent.step == models.StepName.io_pairs,
+            models.StepEvent.event_type == models.EventType.submitted,
+            models.StepEvent.is_correct.is_(True),
+        )
+        .order_by(models.StepEvent.timestamp.desc())
+        .first()
+    )
+    io_pairs = []
+    if io_event and io_event.payload:
+        for p in io_event.payload.get("pairs", []):
+            # ALLOWLIST: call, expected (the student's own typed values).
+            # NEVER: actual, error — both carry reference-implementation info.
+            io_pairs.append(schemas.MyWorkIOPair(call=p["call"], expected=p["expected"]))
+
+    # Step 2: the single buggy_trace submission (single-attempt gate above
+    # already guarantees there's at most one).
+    trace_event = (
+        db.query(models.StepEvent)
+        .filter(
+            models.StepEvent.session_id == req.session_id,
+            models.StepEvent.step == models.StepName.buggy_trace,
+            models.StepEvent.event_type == models.EventType.submitted,
+        )
+        .order_by(models.StepEvent.timestamp.desc())
+        .first()
+    )
+    control_flow, data_flow, mutation_response = [], [], None
+    if trace_event and trace_event.payload:
+        payload = trace_event.payload
+        for trace in payload.get("traces", []):
+            if "error" in trace:
+                continue
+            # ALLOWLIST per row: lineno, line_text, student_count.
+            # NEVER: truth_count, count_correct — nor any trace-level field
+            # (count_correct/count_total, first_wrong_line,
+            # correct_at_buggy_line, final_output.actual/.correct,
+            # final_output_correct, right_answer_wrong_trace,
+            # trace_fully_correct) — every one of those is a
+            # correctness/ground-truth signal Step 2 never reveals.
+            control_flow.append(schemas.MyWorkControlFlowTrace(
+                call=trace["call"],
+                rows=[
+                    schemas.MyWorkTraceRow(
+                        lineno=r["lineno"], line_text=r["line_text"],
+                        student_count=r["student_count"],
+                    )
+                    for r in trace.get("rows", [])
+                ],
+                student_final_output=trace.get("final_output", {}).get("student"),
+            ))
+        for trace in payload.get("data_flow_traces", []):
+            if "error" in trace:
+                continue
+            # ALLOWLIST per cell: cell["student"] only.
+            # NEVER: cell["actual"], cell["correct"], nor the trace-level
+            # aggregates (same exclusion list as above, plus
+            # value_cells_correct/value_cells_total).
+            data_flow.append(schemas.MyWorkDataFlowTrace(
+                call=trace["call"],
+                rows=[
+                    schemas.MyWorkDataFlowRow(
+                        step=r["step"], lineno=r["lineno"], line_text=r["line_text"],
+                        vars={name: cell.get("student") for name, cell in r["cells"].items()},
+                    )
+                    for r in trace.get("rows", [])
+                ],
+                student_final_output=trace.get("final_output", {}).get("student"),
+            ))
+        mutation_response = payload.get("mutation_response")
+
+    return schemas.Step3MyWorkResponse(
+        io_pairs=io_pairs, control_flow=control_flow, data_flow=data_flow,
+        # From the TASK, not the stored payload — this is task-authored
+        # content the student already saw during Step 2, not a secret.
+        mutation_line_number=task.mutation_line_number,
+        mutation_new_line_text=task.mutation_new_line_text,
+        mutation_prompt=task.mutation_prompt,
+        mutation_response=mutation_response,
+    )
+
 
 @app.post("/api/step3/submit", response_model=schemas.Step3SubmitResponse)
 def submit_counter_example(req: schemas.Step3SubmitRequest, db: Session = Depends(get_db)):
