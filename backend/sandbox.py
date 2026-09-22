@@ -120,9 +120,10 @@ def run_call(code: str, call: str) -> ExecResult:
     evaluate `call` (e.g. "max_of_three(1, 2, 3)") against the resulting
     namespace, returning the repr() of the result.
     """
-    # Basic sanity-check the call is a syntactically valid single call
-    # expression before we even spawn a process.
-    syntax_error = _check_call_syntax(call)
+    # Sanity-check the call before we even spawn a process: it must invoke a
+    # function actually defined in `code`, with only literal arguments. See
+    # _check_call_syntax for why this isn't just a formatting nicety.
+    syntax_error = _check_call_syntax(call, _function_names_from_code(code))
     if syntax_error:
         return ExecResult(ok=False, error=syntax_error)
 
@@ -136,14 +137,50 @@ def run_call(code: str, call: str) -> ExecResult:
     return ExecResult(ok=True, value_repr=payload["value_repr"])
 
 
-def _check_call_syntax(call: str) -> Optional[str]:
-    """Return an error message if `call` is not a single function call expression."""
+def _function_names_from_code(code: str) -> set:
+    """Top-level function names defined in `code` — the only names a student
+    call is allowed to invoke (see _check_call_syntax)."""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return set()
+    return {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
+
+
+def _check_call_syntax(call: str, allowed_names: Optional[set] = None) -> Optional[str]:
+    """
+    Return an error message if `call` is not a single, literal-argument call
+    to one of `allowed_names`.
+
+    This used to only check that the top-level node was *some* ast.Call,
+    which let a "call" like `__import__('os').system('id')` through: it IS a
+    Call node, it just doesn't call the student's function, and its argument
+    is itself an arbitrary expression. Since the runner's namespace carries
+    real builtins (exec() auto-populates `__builtins__` when it's absent),
+    that expression runs with full builtin access — arbitrary code execution
+    via a plain form field, no code injection needed. Restricting the callee
+    to a name actually defined in the task's code, and every argument to a
+    literal (ast.literal_eval-able) value, closes that off: nothing in a
+    validated call can name `__import__`, `open`, `eval`, or any other
+    builtin, because none of those are literals or the task's own function.
+    """
     try:
         parsed = ast.parse(call, mode="eval")
-        if not isinstance(parsed.body, ast.Call):
-            return "Input must be a single function call, e.g. func(1, 2)."
     except SyntaxError as e:
         return f"Invalid call syntax: {e}"
+
+    node = parsed.body
+    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+        return "Input must be a single function call, e.g. func(1, 2)."
+    if allowed_names and node.func.id not in allowed_names:
+        return "Input must be a single function call, e.g. func(1, 2)."
+
+    for arg in list(node.args) + [kw.value for kw in node.keywords]:
+        try:
+            ast.literal_eval(arg)
+        except Exception:
+            return ("Arguments must be literal values (numbers, strings, lists, "
+                     "tuples, dicts, or None) — not expressions or function calls.")
     return None
 
 
@@ -212,6 +249,26 @@ def values_equal(value_repr: str, expected_str: str) -> bool:
                 pass
 
     return value_repr.strip() == expected_str.strip()
+
+
+def canonical_call(call: str) -> str:
+    """
+    Best-effort canonical form of a call string, for duplicate detection in
+    Step 1 (three I/O pairs are only a meaningful spec-comprehension test if
+    they probe three different inputs).
+
+    Two calls that are the same modulo formatting — "max_of_three(1,2,3)" vs
+    "max_of_three(1, 2, 3)" — must canonicalize identically; ast.dump() of the
+    parsed expression does that without evaluating anything. Falls back to
+    the stripped raw string when `call` doesn't parse, so a pair of identical
+    unparseable strings still gets caught (unparseable calls are rejected
+    downstream by _check_call_syntax anyway, so this branch mainly matters
+    for a nicer duplicate-vs-syntax error ordering).
+    """
+    try:
+        return ast.dump(ast.parse(call, mode="eval").body)
+    except SyntaxError:
+        return call.strip()
 
 
 # ---------------------------------------------------------------------------
@@ -405,7 +462,7 @@ def capture_trace(code: str, call: str, max_steps: int = MAX_TRACE_STEPS) -> Tra
       `NEXT_LINE_END` when that frame eventually returns rather than showing
       the jump into the nested call. Non-recursive tasks are unaffected.
     """
-    syntax_error = _check_call_syntax(call)
+    syntax_error = _check_call_syntax(call, _function_names_from_code(code))
     if syntax_error:
         return TraceCapture(ok=False, error=syntax_error)
 

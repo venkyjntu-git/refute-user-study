@@ -15,10 +15,12 @@ async function request(path, options = {}) {
 export const api = {
   listTasks: () => request("/api/tasks"),
 
-  startSession: (student_identifier, task_id) =>
+  listLanguages: () => request("/api/languages"),
+
+  startSession: (student_identifier, institute, language, task_id = null) =>
     request("/api/session", {
       method: "POST",
-      body: JSON.stringify({ student_identifier, task_id }),
+      body: JSON.stringify({ student_identifier, institute, language, task_id }),
     }),
 
   markShown: (session_id, step) =>
@@ -33,15 +35,29 @@ export const api = {
       body: JSON.stringify({ session_id, pairs }),
     }),
 
-  submitTraces: (session_id, traces) =>
-    request("/api/step2/submit", {
+  revealExamples: (session_id) =>
+    request("/api/step1/examples", {
       method: "POST",
-      body: JSON.stringify({ session_id, traces }),
+      body: JSON.stringify({ session_id }),
     }),
 
-  submitCounterExample: (session_id, call) =>
+  submitTraces: (session_id, traces, data_flow_traces = [], mutation_response = null) =>
+    request("/api/step2/submit", {
+      method: "POST",
+      body: JSON.stringify({ session_id, traces, data_flow_traces, mutation_response }),
+    }),
+
+  getMyWork: (session_id) =>
+    request("/api/step3/my_work", {
+      method: "POST",
+      body: JSON.stringify({ session_id }),
+    }),
+
+  submitCounterExample: (session_id, call, predicted_correct_output, predicted_buggy_output) =>
     request("/api/step3/submit", {
       method: "POST",
-      body: JSON.stringify({ session_id, call }),
+      body: JSON.stringify({
+        session_id, call, predicted_correct_output, predicted_buggy_output,
+      }),
     }),
 };

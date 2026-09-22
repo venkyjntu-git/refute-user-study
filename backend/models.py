@@ -34,13 +34,28 @@ class Task(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)
+    # "python" | "c" | "ocaml". Drives which sandbox implementation runs this
+    # task's code — see sandbox.py. Only "python" is actually executable
+    # today; c/ocaml tasks can exist in the DB (so the home-page language
+    # picker has something to enumerate) but running them will fail until
+    # each language's execution engine is built.
+    language = Column(String, nullable=False, default="python", server_default="python")
     description = Column(Text, nullable=False)          # task description shown in step 1
     function_signature = Column(String, nullable=False)  # e.g. "def max_of_three(a, b, c):"
     correct_code = Column(Text, nullable=False)           # full correct function source
     buggy_code = Column(Text, nullable=False)             # full buggy function source
     # sample inputs shown to the student to trace in step 3 (UI step 2), as a JSON list
     # of call strings, e.g. ["max_of_three(1, 2, 3)", "max_of_three(-1, -5, -2)"]
+    # These become the CONTROL-FLOW question: the table hides which lines run.
     trace_sample_inputs = Column(JSON, nullable=False)
+    # Optional second set of sample inputs — the DATA-FLOW question. For
+    # these, the true execution skeleton (line, order) is given outright and
+    # the student only fills in variable values. Must be different calls
+    # from trace_sample_inputs: revealing one call's execution path outright
+    # is only safe because it isn't the call the control-flow question is
+    # hiding. Nullable/empty means "no data-flow question for this task" —
+    # purely additive, existing tasks are unaffected.
+    trace_data_flow_inputs = Column(JSON, nullable=True)
 
     # --- step 2 trace-table configuration (all optional; safe defaults) ---
     # Line number(s) within buggy_code that carry the bug, e.g. [5]. Used only
@@ -53,12 +68,34 @@ class Task(Base):
     # fading, cf. PLTutor). 1 demonstrates the format without giving anything
     # away; 0 asks for everything.
     trace_prefill_steps = Column(Integer, nullable=False, default=1, server_default="1")
-    # When true, drop columns whose value is identical on every row of a trace
-    # (typically parameters that are never reassigned). Those cells are visible
-    # in the call itself and carry no tracing signal, but asking for them is a
-    # uniform rule that leaks nothing, so this is off by default.
+    # When true, drop columns whose value is identical on every row of the
+    # DATA-FLOW table (typically parameters that are never reassigned) —
+    # control-flow tables have no variable columns at all, so this has no
+    # effect on them. Those cells are visible in the call itself and carry
+    # no tracing signal, but asking for them is a uniform rule that leaks
+    # nothing, so this is off by default.
     trace_omit_unchanged_vars = Column(Boolean, nullable=False, default=False,
                                         server_default="0")
+
+    # --- step 1 example-reveal config (optional, additive) ---
+    # Author-curated calls, run against correct_code (never buggy_code —
+    # Step 1 is pure spec comprehension). Only the first 2 are ever used.
+    # Nullable/empty means "no reveal available for this task".
+    io_example_inputs = Column(JSON, nullable=True)
+
+    # --- step 2 mutation-question config (optional, additive) ---
+    # A free-text comprehension prompt about a specific line of buggy_code —
+    # mutation_prompt is what gates whether the panel shows at all.
+    # mutation_new_line_text is itself optional: when set, the prompt is
+    # about the line hypothetically CHANGED to this text ("describe the
+    # resulting code"); when left null, the prompt is about the line AS
+    # GIVEN instead (e.g. "how many times will line N execute?" — the
+    # prompt names its own line number in that case). mutation_line_number
+    # is kept either way, mainly for analysis. Collect-only, like the rest
+    # of Step 2 — no auto-grading, doesn't gate progression.
+    mutation_line_number = Column(Integer, nullable=True)
+    mutation_new_line_text = Column(Text, nullable=True)
+    mutation_prompt = Column(Text, nullable=True)
 
     sessions = relationship("StudySession", back_populates="task")
 
@@ -68,6 +105,10 @@ class StudySession(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     student_identifier = Column(String, nullable=False, index=True)
+    # Free string, not a foreign key — chosen from a fixed dropdown in the UI
+    # for consistency across entries, but not enforced server-side (same
+    # trust level as student_identifier: study metadata, not access control).
+    institute = Column(String, nullable=True, index=True)
     task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False)
     created_at = Column(DateTime, default=dt.datetime.utcnow)
 
@@ -75,6 +116,10 @@ class StudySession(Base):
     io_pairs_completed = Column(Boolean, default=False)
     buggy_trace_completed = Column(Boolean, default=False)
     counter_example_completed = Column(Boolean, default=False)
+    # One-time transition, not a completion gate: once the Step 1 example
+    # reveal has fired for this session it stays revealed, and submit_io_pairs
+    # permanently bars reusing either revealed call for the rest of the session.
+    io_examples_shown = Column(Boolean, default=False)
 
     task = relationship("Task", back_populates="sessions")
     events = relationship("StepEvent", back_populates="session")

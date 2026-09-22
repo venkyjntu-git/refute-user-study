@@ -24,11 +24,14 @@ services:
     region: singapore          # same region as the Supabase project (ap-southeast-1)
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    # main.py runs Base.metadata.create_all() on import, so the schema is
-    # created on first boot. seed_data.py is idempotent, so running it on every
-    # boot is safe — and it has to live here rather than in preDeployCommand,
-    # which Render only honours on paid instance types.
-    startCommand: python seed_data.py && uvicorn main:app --host 0.0.0.0 --port $PORT
+    # main.py runs Base.metadata.create_all() on import, which creates missing
+    # TABLES but never adds columns to a table that already exists — so a
+    # column added to models.py needs one of the migrate_*.py scripts to
+    # reach an already-deployed database. Each is idempotent (a no-op once
+    # its columns exist), so running all of them before seed_data.py on
+    # every boot is safe, and it has to live here rather than in
+    # preDeployCommand, which Render only honours on paid instance types.
+    startCommand: python migrate_trace.py && python migrate_language_institute.py && python migrate_step_extras.py && python seed_data.py && uvicorn main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
