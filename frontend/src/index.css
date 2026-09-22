@@ -105,6 +105,7 @@ button.secondary {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-wrap: wrap;
 }
 
 .call-fixed {
@@ -115,7 +116,13 @@ button.secondary {
 
 .call-input input[type="text"] {
   flex: 1;
-  min-width: 0;
+  /* A floor, not 0: on a narrow screen a long function name (e.g.
+     "count_positives(") can otherwise eat the whole row and squeeze this
+     to zero width — the input is still there and still updating, it's
+     just invisible, which looks like typed text is being silently
+     dropped. flex-wrap above lets the input drop to its own full-width
+     line instead once it can't fit next to the fixed text. */
+  min-width: 80px;
 }
 
 .pair-row {
@@ -288,6 +295,30 @@ table.trace-table input[type="number"] {
 
 .not-in-scope {
   color: #9ca3af;
+}
+
+/* Narrow phones: reclaim padding, stack the two-column call/expected pairs
+   into one column (each field then gets the card's full width instead of
+   ~half of it), and bump text inputs to 16px — below that, iOS Safari
+   zooms the whole page in on focus, which reads as the app "jumping"
+   rather than a stable place to type. */
+@media (max-width: 480px) {
+  .app-shell {
+    padding: 20px 12px 60px;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .pair-row {
+    grid-template-columns: 1fr;
+  }
+
+  input[type="text"],
+  input[type="number"] {
+    font-size: 16px;
+  }
 }
 
 .trace-final {
