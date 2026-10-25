@@ -397,3 +397,12 @@ class Step3RefuteResponse(BaseModel):
     attempt_number: int
     attempts_remaining: int
     closed: bool   # success, or out of attempts — move on to the next problem
+
+
+class AdminLoginRequest(BaseModel):
+    password: str
+
+
+class AdminLoginResponse(BaseModel):
+    token: str
+    expires_in: int   # seconds

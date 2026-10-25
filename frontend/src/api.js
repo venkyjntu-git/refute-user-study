@@ -12,6 +12,64 @@ async function request(path, options = {}) {
   return res.json();
 }
 
+// --- admin dashboard: bearer-token requests ---------------------------------
+// The token lives in sessionStorage (cleared when the tab closes), never in
+// localStorage; it expires server-side after a few hours anyway.
+const ADMIN_TOKEN_KEY = "refute_admin_token";
+
+export const adminToken = {
+  get: () => {
+    try { return sessionStorage.getItem(ADMIN_TOKEN_KEY); } catch { return null; }
+  },
+  set: (t) => {
+    try { sessionStorage.setItem(ADMIN_TOKEN_KEY, t); } catch { /* private mode */ }
+  },
+  clear: () => {
+    try { sessionStorage.removeItem(ADMIN_TOKEN_KEY); } catch { /* private mode */ }
+  },
+};
+
+export class AuthError extends Error {}
+
+async function adminFetch(path) {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    headers: { Authorization: `Bearer ${adminToken.get() || ""}` },
+  });
+  if (res.status === 401) {
+    adminToken.clear();
+    throw new AuthError("Your admin session has expired — please log in again.");
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail || `Request failed: ${res.status}`);
+  }
+  return res;
+}
+
+const withInstitute = (path, institute) =>
+  institute ? `${path}?institute=${encodeURIComponent(institute)}` : path;
+
+export const adminApi = {
+  login: (password) =>
+    request("/api/admin/login", { method: "POST", body: JSON.stringify({ password }) }),
+  analysis: async (institute) => (await adminFetch(withInstitute("/api/admin/analysis", institute))).json(),
+  responses: async (institute) => (await adminFetch(withInstitute("/api/admin/responses", institute))).json(),
+  institutes: async () => (await adminFetch("/api/admin/institutes")).json(),
+  // CSVs need the Authorization header, so a plain <a href> can't fetch
+  // them: download as a blob and hand the browser an object URL instead.
+  download: async (path, filename) => {
+    const blob = await (await adminFetch(path)).blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
+};
+
 export const api = {
   listTasks: () => request("/api/tasks"),
 

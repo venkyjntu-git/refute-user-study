@@ -39,7 +39,9 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from database import Base, engine, get_db
+import analysis
 import assignment
+import auth
 import models
 import schemas
 import sandbox
@@ -908,7 +910,58 @@ def submit_refutation(req: schemas.Step3RefuteRequest, db: Session = Depends(get
 # admin / research export
 # ---------------------------------------------------------------------------
 
-@app.get("/api/admin/sessions/{session_id}/events")
+@app.post("/api/admin/login", response_model=schemas.AdminLoginResponse)
+def admin_login(req: schemas.AdminLoginRequest):
+    if not auth.check_password(req.password):
+        import time
+        time.sleep(1)   # blunt brute-force throttle; one shared password
+        raise HTTPException(401, "wrong password")
+    return schemas.AdminLoginResponse(token=auth.issue_token(),
+                                      expires_in=auth.TOKEN_TTL_SECONDS)
+
+
+@app.get("/api/admin/analysis", dependencies=[Depends(auth.require_admin)])
+def admin_analysis(institute: str = None, db: Session = Depends(get_db)):
+    """Descriptive results along the paper's RQs — see analysis.py."""
+    return analysis.analyse(db, institute or None)
+
+
+@app.get("/api/admin/responses", dependencies=[Depends(auth.require_admin)])
+def admin_responses(institute: str = None, db: Session = Depends(get_db)):
+    """One row per study session (participant x problem) for the dashboard."""
+    return analysis.session_rows(db, institute or None)
+
+
+@app.get("/api/admin/institutes", dependencies=[Depends(auth.require_admin)])
+def admin_institutes(db: Session = Depends(get_db)):
+    rows = db.query(models.Participant.institute).distinct().all()
+    return sorted(r[0] for r in rows)
+
+
+@app.get("/api/admin/session_summary.csv", dependencies=[Depends(auth.require_admin)])
+def export_session_summary_csv(institute: str = None, db: Session = Depends(get_db)):
+    """The dashboard's per-session rows as a flat CSV — one row per
+    participant x problem, ready for R/SPSS/pandas."""
+    import io
+    import csv
+    from fastapi.responses import StreamingResponse
+
+    rows = analysis.session_rows(db, institute or None)
+    buf = io.StringIO()
+    if rows:
+        writer = csv.DictWriter(buf, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        for r in rows:
+            writer.writerow({k: (" | ".join(map(str, v)) if isinstance(v, list) else v)
+                             for k, v in r.items()})
+    buf.seek(0)
+    return StreamingResponse(
+        buf, media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=session_summary.csv"},
+    )
+
+
+@app.get("/api/admin/sessions/{session_id}/events", dependencies=[Depends(auth.require_admin)])
 def get_session_events(session_id: int, db: Session = Depends(get_db)):
     session = _get_session_or_404(db, session_id)
     events = (
@@ -926,7 +979,7 @@ def get_session_events(session_id: int, db: Session = Depends(get_db)):
     ]
 
 
-@app.get("/api/admin/export.csv")
+@app.get("/api/admin/export.csv", dependencies=[Depends(auth.require_admin)])
 def export_csv(db: Session = Depends(get_db)):
     """
     Flat CSV of every event across all sessions — one row per event — for
@@ -971,7 +1024,7 @@ def export_csv(db: Session = Depends(get_db)):
     )
 
 
-@app.get("/api/admin/trace_export.csv")
+@app.get("/api/admin/trace_export.csv", dependencies=[Depends(auth.require_admin)])
 def export_trace_csv(db: Session = Depends(get_db)):
     """
     Cell-level CSV of every step-2 CONTROL-FLOW answer — one row per
@@ -1041,7 +1094,7 @@ def export_trace_csv(db: Session = Depends(get_db)):
     )
 
 
-@app.get("/api/admin/data_flow_export.csv")
+@app.get("/api/admin/data_flow_export.csv", dependencies=[Depends(auth.require_admin)])
 def export_data_flow_csv(db: Session = Depends(get_db)):
     """
     Cell-level CSV of every step-2 DATA-FLOW answer — one row per
@@ -1109,7 +1162,7 @@ def export_data_flow_csv(db: Session = Depends(get_db)):
     )
 
 
-@app.get("/api/admin/spec_view_export.csv")
+@app.get("/api/admin/spec_view_export.csv", dependencies=[Depends(auth.require_admin)])
 def export_spec_view_csv(db: Session = Depends(get_db)):
     """One row per spec view / English <-> code-mixed switch, with the study
     variant and participant survey alongside, for RQ3."""

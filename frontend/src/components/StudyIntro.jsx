@@ -13,14 +13,7 @@ export const NATIVE_LANGUAGES = [
   { value: "ta", label: "Tamil" },
   { value: "hi", label: "Hindi" },
   { value: "gu", label: "Gujarati" },
-  { value: "kok", label: "Konkani" },
-  { value: "mr", label: "Marathi" },
-  { value: "kn", label: "Kannada" },
-  { value: "ml", label: "Malayalam" },
-  { value: "bn", label: "Bengali" },
   { value: "de", label: "German" },
-  { value: "en", label: "English" },
-  { value: "other", label: "Other" },
 ];
 
 const SCHOOLING_MEDIUMS = [

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { api } from "./api";
 import TaskIntro from "./components/TaskIntro";
 import StudyIntro from "./components/StudyIntro";
+import AdminDashboard from "./components/AdminDashboard";
 import Step1IOPairs from "./components/Step1IOPairs";
 import Step2Trace from "./components/Step2Trace";
 import Step3CounterExample from "./components/Step3CounterExample";
@@ -16,9 +17,10 @@ const STAGES = {
 
 // The counterbalanced study is the default entry point. The original
 // language-picker flow over the legacy seed tasks stays reachable at
-// ?mode=practice.
-const PRACTICE_MODE =
-  new URLSearchParams(window.location.search).get("mode") === "practice";
+// ?mode=practice. The research dashboard is at ?mode=admin.
+const MODE = new URLSearchParams(window.location.search).get("mode");
+const PRACTICE_MODE = MODE === "practice";
+const ADMIN_MODE = MODE === "admin";
 
 export default function App() {
   const [stage, setStage] = useState(STAGES.INTRO);
@@ -97,6 +99,14 @@ export default function App() {
     [STAGES.TRACE]: "2. Trace",
     [STAGES.COUNTER_EXAMPLE]: "3. Counter-example",
   };
+
+  if (ADMIN_MODE) {
+    return (
+      <div className="app-shell admin-shell">
+        <AdminDashboard />
+      </div>
+    );
+  }
 
   return (
     // The trace table needs more horizontal room than the rest of the flow.

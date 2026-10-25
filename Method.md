@@ -462,3 +462,17 @@ resumes their assignment and progress; it is never re-randomised.
 
 `/api/admin/export.csv` now carries participant, position, condition row,
 variant, form, bug kind, and survey columns on every event.
+
+### Admin dashboard
+
+`?mode=admin` opens a password-protected research dashboard (password from
+the `ADMIN_PASSWORD` environment variable; with it unset, every
+`/api/admin/*` endpoint — including all CSV exports — is disabled). It shows
+descriptive results computed live from the event log by
+`backend/analysis.py`: refutation rate by form and by form × bug (with the
+context effect per bug and the difference between them), the within-student
+direct-vs-contextualized table, Step 1 first-attempt failures, the Step 2
+check, Step 3 among students who understood both task and code, where
+failed refutations came from, code-mixed use, and results by English
+reading. It also lists every response and offers all CSV downloads,
+including a per-session summary for statistical analysis.
