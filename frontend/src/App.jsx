@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { api } from "./api";
 import TaskIntro from "./components/TaskIntro";
+import StudyIntro from "./components/StudyIntro";
 import Step1IOPairs from "./components/Step1IOPairs";
 import Step2Trace from "./components/Step2Trace";
 import Step3CounterExample from "./components/Step3CounterExample";
@@ -12,6 +13,12 @@ const STAGES = {
   COUNTER_EXAMPLE: "counter_example",
   ALL_DONE: "all_done",
 };
+
+// The counterbalanced study is the default entry point. The original
+// language-picker flow over the legacy seed tasks stays reachable at
+// ?mode=practice.
+const PRACTICE_MODE =
+  new URLSearchParams(window.location.search).get("mode") === "practice";
 
 export default function App() {
   const [stage, setStage] = useState(STAGES.INTRO);
@@ -34,6 +41,34 @@ export default function App() {
     setMutation(null);
   };
 
+  const showMaterials = (m) => {
+    setBuggyCode(m.buggy_code);
+    setTraceTables(m.trace_tables);
+    setDataFlowTables(m.data_flow_tables);
+    setMutation({
+      lineNumber: m.mutation_line_number,
+      newLineText: m.mutation_new_line_text,
+      prompt: m.mutation_prompt,
+    });
+  };
+
+  // Study entry: the server has assigned (or restored) the participant's two
+  // problems; resume wherever they left off.
+  const handleRegistered = async (res) => {
+    resetTaskState();
+    setSession(res.session);
+    setTaskList(res.assigned_task_ids.map((id) => ({ id })));
+    setTaskIndex(res.session.position - 1);
+    if (res.stage === "done") {
+      setStage(STAGES.ALL_DONE);
+    } else if (res.stage === "trace" || res.stage === "counter_example") {
+      showMaterials(await api.getStepMaterials(res.session.session_id));
+      setStage(res.stage === "trace" ? STAGES.TRACE : STAGES.COUNTER_EXAMPLE);
+    } else {
+      setStage(STAGES.IO_PAIRS);
+    }
+  };
+
   const handleNextTask = async () => {
     const nextIndex = taskIndex + 1;
     if (!session || nextIndex >= taskList.length) {
@@ -45,6 +80,7 @@ export default function App() {
       const nextSession = await api.startSession(
         session.student_identifier, session.institute, session.language,
         taskList[nextIndex].id,
+        session.participant_id, session.participant_id ? nextIndex + 1 : null,
       );
       resetTaskState();
       setSession(nextSession);
@@ -84,7 +120,11 @@ export default function App() {
         </div>
       )}
 
-      {stage === STAGES.INTRO && (
+      {stage === STAGES.INTRO && !PRACTICE_MODE && (
+        <StudyIntro onRegistered={handleRegistered} />
+      )}
+
+      {stage === STAGES.INTRO && PRACTICE_MODE && (
         <TaskIntro
           onStarted={async (sess) => {
             setSession(sess);

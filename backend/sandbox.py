@@ -137,6 +137,42 @@ def run_call(code: str, call: str) -> ExecResult:
     return ExecResult(ok=True, value_repr=payload["value_repr"])
 
 
+VALIDATOR_FUNCTION = "valid"
+# What run_validator returns when the call can't even run (wrong number of
+# arguments, bad syntax) — a typing slip, which callers may treat differently
+# from an input that runs but breaks the task's rules.
+FORMAT_ERROR = "Please check the number and format of your arguments."
+
+
+def run_validator(validator_code: str, call: str) -> Optional[str]:
+    """
+    Check a student's call against a task's input_validator (source defining
+    `valid(*args) -> None | str` with the task function's parameters).
+
+    Returns None when the input is valid, otherwise the message to show the
+    student. The call is re-targeted at `valid` with the SAME literal
+    arguments, so it gets the same literal-only check and subprocess
+    isolation as any other call. A call that won't parse or run comes back
+    as the format message — the same wording the student gets elsewhere.
+    """
+    try:
+        node = ast.parse(call, mode="eval").body
+    except SyntaxError:
+        return FORMAT_ERROR
+    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+        return FORMAT_ERROR
+    node.func.id = VALIDATOR_FUNCTION
+    result = run_call(validator_code, ast.unparse(node))
+    if not result.ok:
+        return FORMAT_ERROR
+    if result.value_repr == "None":
+        return None
+    try:
+        return str(ast.literal_eval(result.value_repr))
+    except Exception:
+        return result.value_repr
+
+
 def _function_names_from_code(code: str) -> set:
     """Top-level function names defined in `code` — the only names a student
     call is allowed to invoke (see _check_call_syntax)."""

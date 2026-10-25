@@ -12,6 +12,10 @@ class StartSessionRequest(BaseModel):
     # (see App.jsx's handleNextTask) — the home page's initial "Start" still
     # omits it.
     task_id: Optional[int] = None
+    # Study runs only: start the participant's session for this position
+    # (1 or 2). task_id must then be the participant's assigned task for it.
+    participant_id: Optional[int] = None
+    position: Optional[int] = None
 
 
 class StartSessionResponse(BaseModel):
@@ -28,6 +32,44 @@ class StartSessionResponse(BaseModel):
     # a new leak.
     student_identifier: str
     institute: str
+    # --- study runs only (null for legacy sessions) ---
+    # Only the participant's own language version; null hides the toggle.
+    # The variant's bug_kind / variant_key are never sent.
+    description_mixed: Optional[str] = None
+    form: Optional[str] = None                 # "direct" | "contextualized"
+    participant_id: Optional[int] = None
+    position: Optional[int] = None
+    step3_max_attempts: Optional[int] = None
+    step3_attempts_used: int = 0   # so a resumed Step 3 shows the right count
+
+
+class RegisterParticipantRequest(BaseModel):
+    student_identifier: str
+    institute: str
+    native_language: str
+    schooling_medium: str
+    english_proficiency: int = Field(ge=1, le=5)
+
+
+class RegisterParticipantResponse(BaseModel):
+    participant_id: int
+    assigned_task_ids: List[int]
+    resumed: bool
+    # The session to continue in, and where in it — "io_pairs", "trace",
+    # "counter_example", or "done" (both problems finished; session is then
+    # the last one).
+    session: StartSessionResponse
+    stage: str
+
+
+class SpecViewRequest(BaseModel):
+    session_id: int
+    step: str      # "io_pairs" | "counter_example"
+    version: str   # "en" | "mixed"
+
+
+class StepMaterialsRequest(BaseModel):
+    session_id: int
 
 
 class MarkShownRequest(BaseModel):
@@ -130,6 +172,19 @@ class DataFlowTable(BaseModel):
     rows: List[DataFlowRow]
     truncated: bool = False
     error: Optional[str] = None
+
+
+class StepMaterialsResponse(BaseModel):
+    """What Step 2/3 need after a resume: the same reveal Step 1 hands over
+    when it unlocks (buggy code, trace tables). Only served once Step 1 is
+    complete, so it reveals nothing the student hadn't already been given."""
+    buggy_code: Optional[str] = None
+    trace_sample_inputs: Optional[List[str]] = None
+    trace_tables: Optional[List[TraceTable]] = None
+    data_flow_tables: Optional[List[DataFlowTable]] = None
+    mutation_line_number: Optional[int] = None
+    mutation_new_line_text: Optional[str] = None
+    mutation_prompt: Optional[str] = None
 
 
 class Step1SubmitResponse(BaseModel):
@@ -308,3 +363,37 @@ class Step3MyWorkResponse(BaseModel):
     mutation_new_line_text: Optional[str] = None
     mutation_prompt: Optional[str] = None
     mutation_response: Optional[str] = None   # the student's own free text
+
+
+# ---------------------------------------------------------------------------
+# Step 3, study mode (tasks with step3_max_attempts set): an input plus the
+# output the TASK requires for it — no prediction of the buggy output — and
+# a limited number of attempts.
+# ---------------------------------------------------------------------------
+
+class Step3RefuteRequest(BaseModel):
+    session_id: int
+    call: str
+    required_output: str
+    # What the student predicts the buggy program returns for this input —
+    # ties the refutation to a trace of the code, not just a guess.
+    predicted_buggy_output: str
+    # Optional "How did you find this input?" — qualitative, never graded.
+    how_found: Optional[str] = None
+
+
+class Step3RefuteResponse(BaseModel):
+    """Feedback is deliberately one bit: refuted or not. Which of the
+    conditions failed (wrong required output, or the program agrees with the
+    task on this input) is NOT said, and no real output is returned. The one
+    exception is an input that breaks the task's rules (invalid, or
+    implausible under the contextualized form): `invalid_reason` says so,
+    since that is a rule of the task, not information about the bug."""
+    call: str
+    required_output: str
+    predicted_buggy_output: str
+    invalid_reason: Optional[str] = None
+    fully_successful: bool
+    attempt_number: int
+    attempts_remaining: int
+    closed: bool   # success, or out of attempts — move on to the next problem

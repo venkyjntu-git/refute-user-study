@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { api } from "../api";
 import { extractFunctionName } from "../utils";
+import SpecPanel from "./SpecPanel";
 
 const emptyPair = () => ({ args: "", expected: "" });
 
@@ -90,7 +91,7 @@ export default function Step1IOPairs({ session, onCompleted }) {
   return (
     <div className="card">
       <h2>Task Description</h2>
-      <p>{session.description}</p>
+      <SpecPanel session={session} step="io_pairs" />
       <pre className="code-block">{session.function_signature}
     ...</pre>
 

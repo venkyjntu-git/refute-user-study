@@ -325,3 +325,31 @@ table.trace-table input[type="number"] {
   margin-top: 12px;
   max-width: 420px;
 }
+
+/* Task specification with the optional English / code-mixed toggle. */
+.spec-text {
+  white-space: pre-wrap;
+  line-height: 1.55;
+}
+
+.spec-toggle {
+  display: inline-flex;
+  border: 1px solid #c7d2fe;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.spec-toggle button {
+  margin: 0;
+  border-radius: 0;
+  background: #fff;
+  color: #1e3a8a;
+  padding: 6px 14px;
+  font-weight: 500;
+}
+
+.spec-toggle button.active {
+  background: #2563eb;
+  color: #fff;
+}

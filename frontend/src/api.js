@@ -17,10 +17,42 @@ export const api = {
 
   listLanguages: () => request("/api/languages"),
 
-  startSession: (student_identifier, institute, language, task_id = null) =>
+  startSession: (student_identifier, institute, language, task_id = null,
+                 participant_id = null, position = null) =>
     request("/api/session", {
       method: "POST",
-      body: JSON.stringify({ student_identifier, institute, language, task_id }),
+      body: JSON.stringify({
+        student_identifier, institute, language, task_id, participant_id, position,
+      }),
+    }),
+
+  // Counterbalanced study: create or resume a participant (server assigns
+  // their two problems) — see register_participant in backend/main.py.
+  registerParticipant: (survey) =>
+    request("/api/participant", {
+      method: "POST",
+      body: JSON.stringify(survey),
+    }),
+
+  logSpecView: (session_id, step, version) =>
+    request("/api/spec_view", {
+      method: "POST",
+      body: JSON.stringify({ session_id, step, version }),
+    }),
+
+  // Buggy code + trace tables again, for a session resumed past Step 1.
+  getStepMaterials: (session_id) =>
+    request("/api/step2/materials", {
+      method: "POST",
+      body: JSON.stringify({ session_id }),
+    }),
+
+  submitRefutation: (session_id, call, required_output, predicted_buggy_output, how_found) =>
+    request("/api/step3/refute", {
+      method: "POST",
+      body: JSON.stringify({
+        session_id, call, required_output, predicted_buggy_output, how_found,
+      }),
     }),
 
   markShown: (session_id, step) =>

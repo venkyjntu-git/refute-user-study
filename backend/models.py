@@ -10,7 +10,8 @@ import enum
 import datetime as dt
 
 from sqlalchemy import (
-    Column, Integer, String, Text, DateTime, ForeignKey, Boolean, Enum, JSON
+    Column, Integer, String, Text, DateTime, ForeignKey, Boolean, Enum, JSON,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
@@ -97,7 +98,55 @@ class Task(Base):
     mutation_new_line_text = Column(Text, nullable=True)
     mutation_prompt = Column(Text, nullable=True)
 
+    # --- WG study design (COMPUTE 2026) — all NULL on legacy tasks ---
+    # Each study task row is ONE variant of a problem: one form of the
+    # specification crossed with one kind of bug, e.g. "P1_Direct_buggy1".
+    # bug_kind/variant_key are analysis metadata and are never sent to the
+    # student (the form is, since it decides the Step 3 plausibility notice).
+    variant_key = Column(String, nullable=True, index=True)
+    problem_key = Column(String, nullable=True)   # "P1" | "P2"
+    form = Column(String, nullable=True)          # "direct" | "contextualized"
+    bug_kind = Column(String, nullable=True)      # "buggy1" | "buggy2"
+    # Code-mixed versions of `description`, keyed by native language code
+    # ("te", "ta", "hi", ...). The student only ever receives their own.
+    description_mixed = Column(JSON, nullable=True)
+    # Python source defining valid(*args) -> None | str, with the same
+    # parameters as the task function. None = the input is valid for the task
+    # (and, under the contextualized form, plausible in the setting); a string
+    # is the reason shown to the student. Run in the sandbox like task code.
+    input_validator = Column(Text, nullable=True)
+    # Step 3 for study tasks asks for an input plus the output the task
+    # requires, with at most this many attempts. Null = legacy Step 3
+    # (both predictions, unlimited attempts).
+    step3_max_attempts = Column(Integer, nullable=True)
+
     sessions = relationship("StudySession", back_populates="task")
+
+
+class Participant(Base):
+    """One student in the counterbalanced study. Owns the assignment: which
+    two study task variants they see, in which order (see assignment.py)."""
+    __tablename__ = "participants"
+    __table_args__ = (
+        UniqueConstraint("institute", "student_identifier", name="uq_participant_identity"),
+        # The n-th participant at an institute takes slot n; the unique key
+        # makes two simultaneous registrations collide instead of silently
+        # sharing a slot (and so a condition row).
+        UniqueConstraint("institute", "slot", name="uq_participant_slot"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    student_identifier = Column(String, nullable=False, index=True)
+    institute = Column(String, nullable=False, index=True)
+    native_language = Column(String, nullable=True)
+    schooling_medium = Column(String, nullable=True)
+    english_proficiency = Column(Integer, nullable=True)   # self-rated, 1-5
+    slot = Column(Integer, nullable=False)                 # 0-based arrival order at this institute
+    condition_row = Column(Integer, nullable=False)        # row of assignment.CONDITIONS
+    assigned_task_ids = Column(JSON, nullable=False)       # [first task id, second task id]
+    created_at = Column(DateTime, default=dt.datetime.utcnow)
+
+    sessions = relationship("StudySession", back_populates="participant")
 
 
 class StudySession(Base):
@@ -121,7 +170,13 @@ class StudySession(Base):
     # permanently bars reusing either revealed call for the rest of the session.
     io_examples_shown = Column(Boolean, default=False)
 
+    # Study sessions only: which participant, and whether this is their
+    # first or second problem. Null for legacy (language-picker) sessions.
+    participant_id = Column(Integer, ForeignKey("participants.id"), nullable=True, index=True)
+    position = Column(Integer, nullable=True)
+
     task = relationship("Task", back_populates="sessions")
+    participant = relationship("Participant", back_populates="sessions")
     events = relationship("StepEvent", back_populates="session")
 
 
@@ -138,3 +193,17 @@ class StepEvent(Base):
     payload = Column(JSON, nullable=True)         # raw submission content + per-item results
 
     session = relationship("StudySession", back_populates="events")
+
+
+class SpecViewEvent(Base):
+    """Which version of the specification (English or code-mixed) the student
+    switched to, and when. One row when a step first shows the spec (always
+    "en") and one per toggle after that. Kept out of StepEvent so the
+    StepName/EventType enums (native types on Postgres) don't change."""
+    __tablename__ = "spec_view_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("study_sessions.id"), nullable=False, index=True)
+    step = Column(String, nullable=False)      # "io_pairs" | "counter_example"
+    version = Column(String, nullable=False)   # "en" | "mixed"
+    timestamp = Column(DateTime, default=dt.datetime.utcnow, index=True)

@@ -36,8 +36,10 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 
 from database import Base, engine, get_db
+import assignment
 import models
 import schemas
 import sandbox
@@ -113,8 +115,80 @@ def _next_attempt_number(db: Session, session_id: int, step: models.StepName) ->
 # session lifecycle
 # ---------------------------------------------------------------------------
 
+def _create_session(db: Session, task: models.Task, student_identifier: str,
+                    institute: str, participant: models.Participant = None,
+                    position: int = None) -> models.StudySession:
+    session = models.StudySession(
+        student_identifier=student_identifier,
+        institute=institute,
+        task_id=task.id,
+        participant_id=participant.id if participant else None,
+        position=position,
+    )
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+
+    _log_event(db, session.id, models.StepName.task_description, models.EventType.shown)
+    # io_pairs step is shown immediately alongside the task description in this UI
+    _log_event(db, session.id, models.StepName.io_pairs, models.EventType.shown)
+    return session
+
+
+def _session_response(session: models.StudySession) -> schemas.StartSessionResponse:
+    task = session.task
+    participant = session.participant
+    # Only the participant's own language version of the code-mixed text.
+    mixed = None
+    if participant and task.description_mixed:
+        mixed = task.description_mixed.get(participant.native_language) or None
+    return schemas.StartSessionResponse(
+        session_id=session.id,
+        task_id=task.id,
+        title=task.title,
+        language=task.language,
+        description=task.description,
+        function_signature=task.function_signature,
+        student_identifier=session.student_identifier,
+        institute=session.institute,
+        description_mixed=mixed,
+        form=task.form,
+        participant_id=session.participant_id,
+        position=session.position,
+        step3_max_attempts=task.step3_max_attempts,
+        step3_attempts_used=sum(
+            1 for e in session.events
+            if e.step == models.StepName.counter_example
+            and e.event_type == models.EventType.submitted
+        ),
+    )
+
+
 @app.post("/api/session", response_model=schemas.StartSessionResponse)
 def start_session(req: schemas.StartSessionRequest, db: Session = Depends(get_db)):
+    if req.participant_id is not None:
+        # Study run: start (or return) the participant's session for this
+        # position, which must be the task their assignment gave them.
+        participant = db.query(models.Participant).get(req.participant_id)
+        if not participant:
+            raise HTTPException(404, "participant not found")
+        if req.position not in (1, 2):
+            raise HTTPException(400, "position must be 1 or 2")
+        assigned_id = participant.assigned_task_ids[req.position - 1]
+        if req.task_id is not None and req.task_id != assigned_id:
+            raise HTTPException(400, "task is not the one assigned for this position")
+        existing = (
+            db.query(models.StudySession)
+            .filter_by(participant_id=participant.id, position=req.position)
+            .first()
+        )
+        if existing:
+            return _session_response(existing)
+        task = db.query(models.Task).get(assigned_id)
+        session = _create_session(db, task, participant.student_identifier,
+                                  participant.institute, participant, req.position)
+        return _session_response(session)
+
     if req.task_id is not None:
         # Explicit task — used when the frontend advances to the next task
         # in a multi-task study run (see App.jsx's handleNextTask).
@@ -126,39 +200,168 @@ def start_session(req: schemas.StartSessionRequest, db: Session = Depends(get_db
     else:
         # The home page picks a language, not a specific task: load the
         # first task authored for that language (lowest id) rather than
-        # making the student/admin pick a task_id by hand.
+        # making the student/admin pick a task_id by hand. Study variants
+        # are only reachable through a participant's assignment.
         task = (
             db.query(models.Task)
-            .filter(models.Task.language == req.language)
+            .filter(models.Task.language == req.language, models.Task.variant_key.is_(None))
             .order_by(models.Task.id)
             .first()
         )
         if not task:
             raise HTTPException(404, f"no tasks available yet for language '{req.language}'")
 
-    session = models.StudySession(
-        student_identifier=req.student_identifier,
-        institute=req.institute,
-        task_id=task.id,
+    session = _create_session(db, task, req.student_identifier, req.institute)
+    return _session_response(session)
+
+
+# ---------------------------------------------------------------------------
+# counterbalanced study: participant registration / resume
+# ---------------------------------------------------------------------------
+
+def _step3_attempts(db: Session, session_id: int) -> int:
+    return _next_attempt_number(db, session_id, models.StepName.counter_example) - 1
+
+
+def _task_closed(db: Session, session: models.StudySession) -> bool:
+    """A study task is over once refuted or out of Step 3 attempts."""
+    if session.counter_example_completed:
+        return True
+    limit = session.task.step3_max_attempts
+    return bool(limit) and _step3_attempts(db, session.id) >= limit
+
+
+def _stage_of(db: Session, session: models.StudySession) -> str:
+    if _task_closed(db, session):
+        return "done"
+    if session.buggy_trace_completed:
+        return "counter_example"
+    if session.io_pairs_completed:
+        return "trace"
+    return "io_pairs"
+
+
+def _assign_new_participant(db: Session, req: schemas.RegisterParticipantRequest):
+    """Create the participant in the next slot at their institute. Returns
+    (participant, resumed). Two simultaneous registrations at one institute
+    collide on the unique (institute, slot) key; the loser retries with the
+    next slot, so no two participants share a slot (and so a condition row
+    within a block)."""
+    task_ids = {
+        t.variant_key: t.id
+        for t in db.query(models.Task).filter(models.Task.variant_key.isnot(None))
+    }
+    for _ in range(10):
+        slot = (
+            db.query(func.count(models.Participant.id))
+            .filter(models.Participant.institute == req.institute)
+            .scalar()
+        ) or 0
+        row = assignment.condition_row_for_slot(req.institute, slot)
+        keys = assignment.variants_for_row(row)
+        missing = [k for k in keys if k not in task_ids]
+        if missing:
+            raise HTTPException(500, f"study tasks not seeded: {', '.join(missing)}")
+        participant = models.Participant(
+            student_identifier=req.student_identifier,
+            institute=req.institute,
+            native_language=req.native_language,
+            schooling_medium=req.schooling_medium,
+            english_proficiency=req.english_proficiency,
+            slot=slot,
+            condition_row=row,
+            assigned_task_ids=[task_ids[k] for k in keys],
+        )
+        db.add(participant)
+        try:
+            db.commit()
+            db.refresh(participant)
+            return participant, False
+        except IntegrityError:
+            db.rollback()
+            # Same student registering twice at once (a double click): the
+            # identity key fired, so resume the row that won.
+            existing = (
+                db.query(models.Participant)
+                .filter_by(institute=req.institute, student_identifier=req.student_identifier)
+                .first()
+            )
+            if existing:
+                return existing, True
+    raise HTTPException(503, "could not assign a condition — please try again")
+
+
+@app.post("/api/participant", response_model=schemas.RegisterParticipantResponse)
+def register_participant(req: schemas.RegisterParticipantRequest, db: Session = Depends(get_db)):
+    """
+    Start or resume a participant in the counterbalanced study. A returning
+    (institute, student_identifier) keeps the assignment — and the survey
+    answers — from their first registration: a page refresh must never
+    re-randomise anyone.
+    """
+    if not req.student_identifier.strip():
+        raise HTTPException(400, "student identifier is required")
+    participant = (
+        db.query(models.Participant)
+        .filter_by(institute=req.institute, student_identifier=req.student_identifier)
+        .first()
     )
-    db.add(session)
+    resumed = participant is not None
+    if not participant:
+        participant, resumed = _assign_new_participant(db, req)
+
+    session = (
+        db.query(models.StudySession)
+        .filter_by(participant_id=participant.id)
+        .order_by(models.StudySession.position.desc())
+        .first()
+    )
+    if session is None:
+        first_task = db.query(models.Task).get(participant.assigned_task_ids[0])
+        session = _create_session(db, first_task, participant.student_identifier,
+                                  participant.institute, participant, 1)
+    stage = _stage_of(db, session)
+    if stage == "done" and session.position == 1:
+        second_task = db.query(models.Task).get(participant.assigned_task_ids[1])
+        session = _create_session(db, second_task, participant.student_identifier,
+                                  participant.institute, participant, 2)
+        stage = "io_pairs"
+
+    return schemas.RegisterParticipantResponse(
+        participant_id=participant.id,
+        assigned_task_ids=participant.assigned_task_ids,
+        resumed=resumed,
+        session=_session_response(session),
+        stage=stage,
+    )
+
+
+@app.post("/api/spec_view")
+def log_spec_view(req: schemas.SpecViewRequest, db: Session = Depends(get_db)):
+    """One row per spec version shown: the initial English view of a step,
+    then every switch between English and the code-mixed version."""
+    _get_session_or_404(db, req.session_id)
+    if req.step not in ("io_pairs", "counter_example"):
+        raise HTTPException(400, "invalid step")
+    if req.version not in ("en", "mixed"):
+        raise HTTPException(400, "invalid version")
+    db.add(models.SpecViewEvent(
+        session_id=req.session_id, step=req.step, version=req.version,
+        timestamp=dt.datetime.utcnow(),
+    ))
     db.commit()
-    db.refresh(session)
+    return {"ok": True}
 
-    _log_event(db, session.id, models.StepName.task_description, models.EventType.shown)
-    # io_pairs step is shown immediately alongside the task description in this UI
-    _log_event(db, session.id, models.StepName.io_pairs, models.EventType.shown)
 
-    return schemas.StartSessionResponse(
-        session_id=session.id,
-        task_id=task.id,
-        title=task.title,
-        language=task.language,
-        description=task.description,
-        function_signature=task.function_signature,
-        student_identifier=req.student_identifier,
-        institute=req.institute,
-    )
+@app.post("/api/step2/materials", response_model=schemas.StepMaterialsResponse)
+def get_step_materials(req: schemas.StepMaterialsRequest, db: Session = Depends(get_db)):
+    """Re-serve what Step 1 handed over on unlock, for a resumed session."""
+    session = _get_session_or_404(db, req.session_id)
+    if not session.io_pairs_completed:
+        raise HTTPException(400, "complete the input/output pairs step first")
+    resp = schemas.StepMaterialsResponse()
+    _attach_trace_step(resp, session.task)
+    return resp
 
 
 @app.post("/api/event")
@@ -173,7 +376,7 @@ def mark_shown(req: schemas.MarkShownRequest, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
-def _attach_trace_step(resp: schemas.Step1SubmitResponse, task: models.Task) -> None:
+def _attach_trace_step(resp, task: models.Task) -> None:
     """Hand the student the buggy code, one control-flow trace table per
     trace_sample_inputs call, and one data-flow trace table per
     trace_data_flow_inputs call (if the task has any — optional, additive)."""
@@ -261,10 +464,27 @@ def submit_io_pairs(req: schemas.Step1SubmitRequest, db: Session = Depends(get_d
     all_correct = all(r.correct for r in results)
     attempt_number = _next_attempt_number(db, session.id, models.StepName.io_pairs)
 
+    logged_pairs = [r.dict() for r in results]
+    if task.variant_key:
+        # Analysis only, never returned: would this pair already have refuted
+        # the program the student is about to see, and is it a valid (under
+        # the contextualized form, plausible) input for the task?
+        for entry, pair in zip(logged_pairs, req.pairs):
+            buggy = sandbox.run_call(task.buggy_code, pair.call)
+            entry["buggy_actual"] = buggy.value_repr if buggy.ok else None
+            entry["is_counterexample"] = (
+                entry["actual"] is not None and buggy.ok
+                and not sandbox.values_equal(entry["actual"], buggy.value_repr)
+            )
+            entry["invalid_reason"] = (
+                sandbox.run_validator(task.input_validator, pair.call)
+                if task.input_validator else None
+            )
+
     _log_event(
         db, session.id, models.StepName.io_pairs, models.EventType.submitted,
         attempt_number=attempt_number, is_correct=all_correct,
-        payload={"pairs": [r.dict() for r in results]},
+        payload={"pairs": logged_pairs},
     )
 
     # The student is told which pairs are wrong, never what the right answer was:
@@ -514,6 +734,8 @@ def submit_counter_example(req: schemas.Step3SubmitRequest, db: Session = Depend
     if not session.buggy_trace_completed:
         raise HTTPException(400, "complete the trace step first")
     task = session.task
+    if task.step3_max_attempts:
+        raise HTTPException(400, "this task uses /api/step3/refute")
 
     correct_result = sandbox.run_call(task.correct_code, req.call)
     buggy_result = sandbox.run_call(task.buggy_code, req.call)
@@ -590,6 +812,98 @@ def submit_counter_example(req: schemas.Step3SubmitRequest, db: Session = Depend
     )
 
 
+@app.post("/api/step3/refute", response_model=schemas.Step3RefuteResponse)
+def submit_refutation(req: schemas.Step3RefuteRequest, db: Session = Depends(get_db)):
+    """
+    Study-mode Step 3: an input on which the program fails, plus the output
+    the task requires for it and the output the program actually gives. A
+    refutation succeeds when the input is valid for the task (and, under the
+    contextualized form, plausible in the setting), the stated required
+    output is right, the predicted program output is right, and the two
+    differ. Each condition is logged separately for analysis.
+
+    At most task.step3_max_attempts attempts. An input that cannot run at all
+    (bad format) is rejected without using one up — that's a typing slip,
+    not a refutation attempt. An invalid or implausible input does use one,
+    and is the only failure whose reason the student is told.
+    """
+    session = _get_session_or_404(db, req.session_id)
+    if not session.buggy_trace_completed:
+        raise HTTPException(400, "complete the trace step first")
+    task = session.task
+    limit = task.step3_max_attempts
+    if not limit:
+        raise HTTPException(400, "this task uses /api/step3/submit")
+    if _task_closed(db, session):
+        raise HTTPException(400, "this problem is already finished")
+
+    if sandbox._check_call_syntax(req.call, sandbox._function_names_from_code(task.correct_code)):
+        raise HTTPException(400, sandbox.FORMAT_ERROR)
+    invalid_reason = (
+        sandbox.run_validator(task.input_validator, req.call) if task.input_validator else None
+    )
+    if invalid_reason == sandbox.FORMAT_ERROR:
+        # Literal arguments, but the wrong number of them: still a typing slip.
+        raise HTTPException(400, sandbox.FORMAT_ERROR)
+
+    attempt_number = _step3_attempts(db, session.id) + 1
+    payload = {
+        "call": req.call, "required_output": req.required_output,
+        "predicted_buggy_output": req.predicted_buggy_output,
+        "how_found": req.how_found,
+    }
+    correct_result = buggy_result = None
+    if invalid_reason is None:
+        correct_result = sandbox.run_call(task.correct_code, req.call)
+        buggy_result = sandbox.run_call(task.buggy_code, req.call)
+        if not correct_result.ok:
+            # The validator let through something the reference can't run —
+            # a content gap in the validator; treat the input as invalid.
+            invalid_reason = "This input is not valid for the task."
+            payload["error"] = correct_result.error
+
+    if invalid_reason is None:
+        required_right = sandbox.values_equal(correct_result.value_repr, req.required_output)
+        # A crash in the buggy program on a valid input is also a failure.
+        program_differs = (not buggy_result.ok) or not sandbox.values_equal(
+            correct_result.value_repr, buggy_result.value_repr)
+        buggy_prediction_right = buggy_result.ok and sandbox.values_equal(
+            buggy_result.value_repr, req.predicted_buggy_output)
+        fully_successful = required_right and buggy_prediction_right and program_differs
+        payload.update({
+            "correct_output": correct_result.value_repr,
+            "buggy_output": buggy_result.value_repr if buggy_result.ok else None,
+            "buggy_error": buggy_result.error,
+            "required_output_right": required_right,
+            "buggy_prediction_right": buggy_prediction_right,
+            "is_counter_example": program_differs,
+        })
+    else:
+        fully_successful = False
+    payload["invalid_reason"] = invalid_reason
+    payload["fully_successful"] = fully_successful
+
+    _log_event(
+        db, session.id, models.StepName.counter_example, models.EventType.submitted,
+        attempt_number=attempt_number, is_correct=fully_successful, payload=payload,
+    )
+    if fully_successful:
+        session.counter_example_completed = True
+        db.commit()
+
+    attempts_remaining = max(0, limit - attempt_number)
+    return schemas.Step3RefuteResponse(
+        call=req.call,
+        required_output=req.required_output,
+        predicted_buggy_output=req.predicted_buggy_output,
+        invalid_reason=invalid_reason,
+        fully_successful=fully_successful,
+        attempt_number=attempt_number,
+        attempts_remaining=attempts_remaining,
+        closed=fully_successful or attempts_remaining == 0,
+    )
+
+
 # ---------------------------------------------------------------------------
 # admin / research export
 # ---------------------------------------------------------------------------
@@ -623,9 +937,10 @@ def export_csv(db: Session = Depends(get_db)):
     from fastapi.responses import StreamingResponse
 
     rows = (
-        db.query(models.StepEvent, models.StudySession, models.Task)
+        db.query(models.StepEvent, models.StudySession, models.Task, models.Participant)
         .join(models.StudySession, models.StepEvent.session_id == models.StudySession.id)
         .join(models.Task, models.StudySession.task_id == models.Task.id)
+        .outerjoin(models.Participant, models.StudySession.participant_id == models.Participant.id)
         .order_by(models.StepEvent.session_id, models.StepEvent.timestamp)
         .all()
     )
@@ -634,11 +949,18 @@ def export_csv(db: Session = Depends(get_db)):
     writer = csv.writer(buf)
     writer.writerow([
         "session_id", "student_identifier", "institute", "task_id", "language",
+        # study design (blank for legacy sessions)
+        "participant_id", "position", "condition_row", "variant_key", "problem_key",
+        "form", "bug_kind", "native_language", "schooling_medium", "english_proficiency",
         "step", "event_type", "attempt_number", "is_correct", "timestamp", "payload_json",
     ])
-    for ev, sess, task in rows:
+    for ev, sess, task, part in rows:
         writer.writerow([
             sess.id, sess.student_identifier, sess.institute, sess.task_id, task.language,
+            sess.participant_id, sess.position, part.condition_row if part else None,
+            task.variant_key, task.problem_key, task.form, task.bug_kind,
+            part.native_language if part else None, part.schooling_medium if part else None,
+            part.english_proficiency if part else None,
             ev.step, ev.event_type, ev.attempt_number, ev.is_correct, ev.timestamp.isoformat(),
             __import__("json").dumps(ev.payload) if ev.payload else "",
         ])
@@ -787,9 +1109,50 @@ def export_data_flow_csv(db: Session = Depends(get_db)):
     )
 
 
+@app.get("/api/admin/spec_view_export.csv")
+def export_spec_view_csv(db: Session = Depends(get_db)):
+    """One row per spec view / English <-> code-mixed switch, with the study
+    variant and participant survey alongside, for RQ3."""
+    import io
+    import csv
+    from fastapi.responses import StreamingResponse
+
+    rows = (
+        db.query(models.SpecViewEvent, models.StudySession, models.Task, models.Participant)
+        .join(models.StudySession, models.SpecViewEvent.session_id == models.StudySession.id)
+        .join(models.Task, models.StudySession.task_id == models.Task.id)
+        .outerjoin(models.Participant, models.StudySession.participant_id == models.Participant.id)
+        .order_by(models.SpecViewEvent.session_id, models.SpecViewEvent.timestamp)
+        .all()
+    )
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([
+        "session_id", "participant_id", "student_identifier", "institute", "position",
+        "variant_key", "problem_key", "form", "bug_kind",
+        "native_language", "schooling_medium", "english_proficiency",
+        "step", "version", "timestamp",
+    ])
+    for ev, sess, task, part in rows:
+        writer.writerow([
+            sess.id, sess.participant_id, sess.student_identifier, sess.institute, sess.position,
+            task.variant_key, task.problem_key, task.form, task.bug_kind,
+            part.native_language if part else None, part.schooling_medium if part else None,
+            part.english_proficiency if part else None,
+            ev.step, ev.version, ev.timestamp.isoformat(),
+        ])
+    buf.seek(0)
+    return StreamingResponse(
+        buf, media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=spec_views.csv"},
+    )
+
+
 @app.get("/api/tasks")
 def list_tasks(db: Session = Depends(get_db)):
-    tasks = db.query(models.Task).all()
+    # Legacy flow only: study variants are reached through an assignment.
+    tasks = db.query(models.Task).filter(models.Task.variant_key.is_(None)).all()
     return [{"id": t.id, "title": t.title, "language": t.language} for t in tasks]
 
 

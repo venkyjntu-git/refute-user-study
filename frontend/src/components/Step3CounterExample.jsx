@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { api } from "../api";
 import { extractFunctionName } from "../utils";
+import SpecPanel from "./SpecPanel";
 
 export default function Step3CounterExample({ session, buggyCode, onNext, nextError, hasNextTask }) {
   const [args, setArgs] = useState("");
@@ -52,7 +53,7 @@ export default function Step3CounterExample({ session, buggyCode, onNext, nextEr
       <h2>Step 3: Find a counter-example</h2>
 
       <h3>Task Description</h3>
-      <p>{session.description}</p>
+      <SpecPanel session={session} step="counter_example" />
 
       <h3>Buggy code</h3>
       <pre className="code-block">{buggyCode}</pre>
@@ -127,6 +128,16 @@ export default function Step3CounterExample({ session, buggyCode, onNext, nextEr
         </>
       )}
 
+      {session.step3_max_attempts ? (
+        <StudyRefutation
+          session={session}
+          funcName={funcName}
+          onNext={onNext}
+          nextError={nextError}
+          hasNextTask={hasNextTask}
+        />
+      ) : (
+      <>
       <p>
         Give one input for which the buggy code produces a <em>different</em>{" "}
         result than the correct code — that's your refutation. Before you find
@@ -223,6 +234,143 @@ export default function Step3CounterExample({ session, buggyCode, onNext, nextEr
           </button>
         </>
       )}
+      </>
+      )}
     </div>
+  );
+}
+
+// Study-mode Step 3 (the WG design): an input on which the program fails,
+// plus the output the TASK requires for it — no prediction of what the
+// program returns — with a limited number of attempts. Feedback is one bit
+// (refuted or not); only an input that breaks the task's rules says why.
+function StudyRefutation({ session, funcName, onNext, nextError, hasNextTask }) {
+  const [args, setArgs] = useState("");
+  const [requiredOutput, setRequiredOutput] = useState("");
+  const [buggyOutput, setBuggyOutput] = useState("");
+  const [howFound, setHowFound] = useState("");
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const maxAttempts = session.step3_max_attempts;
+  const attemptsRemaining = result
+    ? result.attempts_remaining
+    : maxAttempts - (session.step3_attempts_used || 0);
+  const closed = result && result.closed;
+
+  const handleSubmit = async () => {
+    if (!args.trim()) {
+      setError("Please enter the arguments for your input.");
+      return;
+    }
+    if (!requiredOutput.trim() || !buggyOutput.trim()) {
+      setError("Please give both outputs: the one the task requires, and the one the code above returns.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.submitRefutation(
+        session.session_id, `${funcName}(${args.trim()})`, requiredOutput.trim(),
+        buggyOutput.trim(), howFound.trim() || null,
+      );
+      setResult(res);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <p>
+        Give one input on which the code above does <em>not</em> do what the
+        task requires. For that input, give both the output that the{" "}
+        <strong>task</strong> requires and the output that the{" "}
+        <strong>code above</strong> returns.
+      </p>
+      {session.form === "contextualized" && (
+        <div className="notice">
+          Your input must be realistic for the situation described in the
+          task — the kind of data that could really occur there.
+        </div>
+      )}
+      <p className="result-hint">
+        You have {attemptsRemaining} of {maxAttempts} attempt{maxAttempts === 1 ? "" : "s"} left.
+      </p>
+
+      <label>Your input</label>
+      <div className="call-input">
+        <code className="call-fixed">{funcName}(</code>
+        <input
+          type="text"
+          placeholder="arguments"
+          aria-label="Input arguments"
+          value={args}
+          disabled={closed}
+          onChange={(e) => setArgs(e.target.value)}
+        />
+        <code className="call-fixed">)</code>
+      </div>
+
+      <label>Output the task requires for this input</label>
+      <input
+        type="text"
+        value={requiredOutput}
+        disabled={closed}
+        onChange={(e) => setRequiredOutput(e.target.value)}
+      />
+
+      <label>Output the code above returns for this input</label>
+      <input
+        type="text"
+        value={buggyOutput}
+        disabled={closed}
+        onChange={(e) => setBuggyOutput(e.target.value)}
+      />
+
+      <label>How did you find this input? (optional)</label>
+      <textarea
+        value={howFound}
+        disabled={closed}
+        onChange={(e) => setHowFound(e.target.value)}
+      />
+
+      {error && <div className="error-banner">{error}</div>}
+
+      {result && (
+        result.fully_successful ? (
+          <div className="success-banner">
+            Correct — this input shows that the code is wrong.
+          </div>
+        ) : result.invalid_reason ? (
+          <div className="error-banner">{result.invalid_reason}</div>
+        ) : (
+          <div className="error-banner">
+            Not correct: either the code does what the task requires on this
+            input, or at least one of the two outputs you gave is wrong.
+          </div>
+        )
+      )}
+      {closed && !result.fully_successful && (
+        <div className="notice">You have used all your attempts for this problem.</div>
+      )}
+
+      {!closed && (
+        <button onClick={handleSubmit} disabled={loading}>
+          {loading ? "Checking..." : "Submit"}
+        </button>
+      )}
+      {closed && (
+        <>
+          {nextError && <div className="error-banner">{nextError}</div>}
+          <button onClick={onNext}>
+            {hasNextTask ? "Next problem" : "Finish study"}
+          </button>
+        </>
+      )}
+    </>
   );
 }

@@ -405,3 +405,60 @@ suggestive. A student who fails Step 3 with `correct_at_buggy_line` false
 misread the code; one who fails it with a fully correct trace understood the
 code and still could not construct a distinguishing input. Those are different
 findings.
+## The counterbalanced WG study (COMPUTE 2026)
+
+The default entry point of the app now runs the Working Group study, which
+crosses two **forms** of each task specification with two **kinds of bug**.
+The original language-picker flow over the ten seed problems is still
+available at `?mode=practice`.
+
+### Problems and variants
+
+Two problems, each written in two forms and paired with two buggy programs,
+give eight variants (one `Task` row each, defined in `backend/seed_study.py`):
+
+| Problem | Direct / Contextualized setting | Buggy1 (context-independent) | Buggy2 (context-sensitive) |
+|---|---|---|---|
+| P1 `has_large_change(readings, T)` | heart-rate monitor | returns after checking only the first pair | compares the first reading with `prev = 0` |
+| P2 `warmest(temps)` | January nights in Leh | `>=` returns the *last* of tied maxima | starts the maximum at `best = 0` |
+
+Within a problem, everything except the specification is identical across
+forms: function name, reference solution, both buggy programs, and the
+Step 2 inputs (which are also shared by both bugs, and refute neither).
+`backend/check_study_tasks.py` runs every claim about these inputs.
+
+### Assignment
+
+Each participant gets both problems, one in each form, and one of each
+problem's two buggy programs. `backend/assignment.py` holds an 8-row
+condition table: any 4 consecutive rows show every form × bug combination of
+each problem once, and all 8 also balance which problem comes first. Rows
+are dealt in permuted blocks of 8 **per institute**, seeded from the
+institute and block number, so an assignment is reproducible from the
+participant's arrival slot. A returning student (same institute and ID)
+resumes their assignment and progress; it is never re-randomised.
+
+### Changes to the steps for study tasks
+
+- **Intake survey:** native language, medium of schooling, and self-rated
+  English reading (1–5), stored on the `Participant`.
+- **Specification:** shown in English by default in Steps 1 and 3, with a
+  toggle to a code-mixed version in the student's native language (when the
+  WG has written one, in `description_mixed`). The first view and every
+  switch are logged to `spec_view_events` (`/api/admin/spec_view_export.csv`).
+- **Step 1:** unchanged gate. Additionally logged, never shown: whether each
+  pair would already refute the program the student is about to see, and
+  whether it is valid (and plausible) for the task.
+- **Step 2:** unchanged; no mutation-reflection question for study tasks.
+- **Step 3:** an input plus two outputs — the one the *task* requires and
+  the one the buggy code returns — at most 3 attempts, and an optional "How
+  did you find this input?". Success requires a valid input (under the
+  contextualized form, plausible in the setting — `input_validator`), both
+  outputs right, and the two outputs different. Each condition is logged
+  separately (`required_output_right`, `buggy_prediction_right`,
+  `is_counter_example`). Feedback is one bit; only an
+  input that breaks the task's rules is told why. A call that cannot run at
+  all is rejected without using an attempt.
+
+`/api/admin/export.csv` now carries participant, position, condition row,
+variant, form, bug kind, and survey columns on every event.

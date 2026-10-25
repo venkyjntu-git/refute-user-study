@@ -4,6 +4,7 @@ Run once to populate the DB with the sample tasks, e.g.:
 """
 from database import Base, engine, SessionLocal
 import models
+from seed_study import STUDY_TASKS
 
 Base.metadata.create_all(bind=engine)
 
@@ -546,7 +547,7 @@ SAMPLE_TASKS = [
     BEST_DAY, CANNOT_FORM_TEAMS, RUNNER_UP,
     LONGEST_HOT_STREAK, MAX_TALKS,
     PARKING_FEE,
-]
+] + STUDY_TASKS
 
 # Fields that describe how step 2 is presented rather than what the task is;
 # safe to refresh on an already-seeded task so an existing dev DB picks up
@@ -558,19 +559,29 @@ TRACE_CONFIG_FIELDS = (
     "mutation_line_number", "mutation_new_line_text", "mutation_prompt",
 )
 
+# Study-variant wording that the WG may revise after the pilot (and the
+# code-mixed text, which arrives later). Code is deliberately NOT refreshed:
+# changing a program under existing sessions would corrupt their analysis.
+STUDY_CONTENT_FIELDS = (
+    "description", "description_mixed", "input_validator", "step3_max_attempts",
+)
+
 
 def _seed_one(db, sample_task: dict) -> None:
     existing = db.query(models.Task).filter_by(title=sample_task["title"]).first()
     if existing:
         changed = []
-        for field in TRACE_CONFIG_FIELDS:
+        fields = TRACE_CONFIG_FIELDS
+        if sample_task.get("variant_key"):
+            fields = fields + STUDY_CONTENT_FIELDS
+        for field in fields:
             if getattr(existing, field) != sample_task[field]:
                 setattr(existing, field, sample_task[field])
                 changed.append(field)
         if changed:
             db.commit()
             print(f"Task '{sample_task['title']}' (id={existing.id}) already exists; "
-                  f"refreshed trace config: {', '.join(changed)}")
+                  f"refreshed config: {', '.join(changed)}")
         else:
             print(f"Task '{sample_task['title']}' already exists (id={existing.id}); skipping.")
         return

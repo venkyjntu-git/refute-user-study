@@ -735,9 +735,45 @@ claim.
 
 \section{Order in which students see the problems}
 
-Problems are presented in the order listed above (by their number in the
-database), and a student who picks Python works through all ten. The
-order is not currently shuffled between students; if the study design
-needs to rule out order effects, that remains to be added.
+In the practice flow (\texttt{?mode=practice}), problems are presented in
+the order listed above (by their number in the database), and a student
+who picks Python works through all ten, unshuffled.
+
+The Working Group study does not use these ten problems; see the next
+section.
+
+%======================================================================
+\section{The study problems (COMPUTE 2026)}
+
+The study uses two further problems, defined in
+\texttt{backend/seed\_study.py}. Each is written in a \emph{direct} and a
+\emph{contextualized} form and paired with two faulty programs, giving
+eight variants, from \texttt{P1\_Direct\_buggy1} to
+\texttt{P2\_Contextualized\_buggy2}.
+
+\medskip
+\noindent
+\begin{tabularx}{\textwidth}{@{}l L L@{}}
+\toprule
+\textbf{Problem} & \textbf{Buggy1 (context-independent)} & \textbf{Buggy2 (context-sensitive)} \\
+\midrule
+P1 \texttt{has\_large\_change} (heart rate) & returns after the first pair;
+  \texttt{[70, 72, 110]}, $T=15$ & \texttt{prev = 0};
+  \texttt{[72, 74]}, $T=15$ \\
+P2 \texttt{warmest} (nights in Leh) & \texttt{>=} keeps the last tie;
+  \texttt{[-9.8, -12.0, -9.8]} & \texttt{best = 0};
+  \texttt{[-14.2, -9.8]} \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+Each student sees both problems, one in each form, and one faulty program
+per problem. Which form, which faulty program, and which problem comes
+first are counterbalanced in permuted blocks of eight per institute
+(\texttt{backend/assignment.py}). Under the contextualized form, a Step~3
+input must be realistic for the setting (for example, heart rates of
+30--220~bpm; temperatures of $-40.0$ to $10.0$\,\textdegree C to one decimal
+place). These ranges are still to be confirmed by the Working Group.
+\texttt{backend/check\_study\_tasks.py} runs every input claim made here.
 
 \end{document}
