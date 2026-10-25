@@ -1,0 +1,743 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+
+% Long inline code (list inputs) cannot hyphenate; let lines stretch
+% instead of overflowing into the margin.
+\setlength{\emergencystretch}{3em}
+
+\definecolor{codebg}{RGB}{247,247,247}
+\definecolor{codeframe}{RGB}{210,210,210}
+\definecolor{kw}{RGB}{0,70,140}
+\definecolor{bugred}{RGB}{170,30,30}
+
+\lstset{
+  language=Python,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{kw}\bfseries,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  numbersep=6pt,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{codeframe},
+  xleftmargin=1.5em,
+  framexleftmargin=1.2em,
+  showstringspaces=false,
+  columns=fullflexible,
+  keepspaces=true,
+}
+
+% Side-by-side correct / buggy code.
+\newenvironment{codepair}{\par\noindent}{\par\medskip}
+\newcommand{\codelabel}[1]{\textbf{\small #1}\par\vspace{2pt}}
+
+% One-line summary box per problem.
+\newcommand{\bugnote}[1]{\par\noindent\textcolor{bugred}{\textbf{The bug:}} #1\par\smallskip}
+
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+\title{The Ten Seed Problems of the\\Refute-Problem Difficulty Study}
+\author{Refute User Study Team}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This document describes the ten practice problems that the study web
+application loads into its database when it is first set up. For each
+problem we give the story the student reads, the correct and the faulty
+program, what exactly is wrong with the faulty program, and the example
+inputs that are used at each step. We also explain, in plain language,
+what each piece of information stored with a problem is for. No
+programming background is needed to follow the explanations; the program
+listings are included for completeness.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%======================================================================
+\section{What the study asks students to do}
+
+Every problem in the study is a \emph{refute problem}: the student is
+given a description of what a small program should do, together with a
+version of that program that contains a mistake. The student's ultimate
+goal is to find a \emph{counter-example} --- an input on which the faulty
+program gives a different answer from a correct one.
+
+To see \emph{where} students struggle, the task is split into three
+steps, each timed separately:
+
+\begin{description}[leftmargin=1.5em, style=nextline]
+  \item[Step 1 --- Understanding the task.]
+    The student sees only the description (no program) and writes three
+    example inputs with the answers they expect. The system silently
+    checks these against the correct program. This tells us whether the
+    student understood what the program is \emph{supposed} to do.
+  \item[Step 2 --- Reading the faulty program.]
+    The student now sees the faulty program and answers questions about
+    how it behaves on inputs chosen by the researchers: how many times
+    each line runs, and what values the program's variables hold as it
+    runs. The chosen inputs never reveal the mistake, so this measures
+    pure reading skill. There is one attempt and no feedback.
+  \item[Step 3 --- Finding the counter-example.]
+    The student proposes an input and predicts what both the correct and
+    the faulty program would answer. The step is complete when the input
+    really does make the two programs disagree \emph{and} both
+    predictions are right.
+\end{description}
+
+%======================================================================
+\section{What is stored for each problem}
+
+Each problem is stored as one record with the fields below. The names in
+typewriter font are the exact names used in the file
+\texttt{backend/seed\_data.py}.
+
+\medskip
+\noindent
+\begin{tabularx}{\textwidth}{@{}>{\ttfamily\raggedright}p{4.8cm}L@{}}
+\toprule
+\normalfont\textbf{Field} & \textbf{What it means, in plain terms} \\
+\midrule
+title & A short, unique name for the problem. It is also used to recognise
+  a problem that has already been loaded, so loading twice never creates
+  duplicates. \\
+language & The programming language (currently always Python). The home
+  page only offers problems in the language the student picks. \\
+description & The task as the student reads it in Step 1 --- either a
+  direct statement (``return the smallest number'') or a real-world story
+  that the student must translate into a computation. \\
+function\_signature & The first line of the program (its name and inputs),
+  shown as a heading above the Step 1 answer form. \\
+correct\_code & A correct program for the task. Students never see it; it
+  is the hidden ``answer key'' their Step 1 examples and Step 3
+  predictions are checked against. \\
+buggy\_code & The faulty program the student studies in Steps 2 and 3. It
+  differs from the correct one in a small, deliberate way. \\
+trace\_sample\_inputs & The input(s) used for the ``how many times does
+  each line run?'' question in Step 2. They are chosen so that the
+  mistake does \emph{not} show up on them. \\
+trace\_data\_flow\_\newline inputs & A \emph{different} input used for the ``what
+  value does each variable hold?'' question in Step 2. Here the order in
+  which lines run is shown, and only the values are asked. It must differ
+  from the input above, otherwise showing the order would give away the
+  answer to the first question. \\
+buggy\_line\_numbers & Which line(s) of the faulty program contain the
+  mistake. Used only in the analysis --- for example, to ask ``did the
+  student read the faulty line correctly?'' --- and never shown to
+  students. \\
+trace\_prefill\_steps & How many rows of each Step 2 table are filled in
+  already, as a worked example of how to answer (1 for every problem). \\
+trace\_omit\_\newline unchanged\_vars & Whether to hide variables whose value never
+  changes from the value table. Always off here, so students are asked
+  about every variable. \\
+io\_example\_inputs & Two example inputs whose correct answers are shown
+  to a student who gets stuck in Step 1 (only after a wrong attempt). The
+  student may not then reuse these as their own examples. \\
+mutation\_line\_number,\newline mutation\_new\_line\_text,\newline mutation\_prompt &
+  An optional reflection question at the end of Step 2. Either a line is
+  shown changed to new text and the student describes what difference
+  that makes, or (when no new text is given) the student answers a
+  question about the program as it stands. Answers are free text and are
+  not marked. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+Every problem is chosen to be \emph{small} (a single short program, no
+program that calls itself, at most a few dozen steps to trace) and to
+return a number or true/false, so that students can type answers without
+worrying about formatting.
+
+%======================================================================
+\section{Overview of the ten problems}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{@{}r>{\ttfamily}lLl@{}}
+\toprule
+\# & \normalfont\textbf{Title} & \textbf{Kind of mistake} & \textbf{Style} \\
+\midrule
+1  & max\_of\_three       & an ``else-if'' that skips a needed check & direct \\
+2  & smallest             & the loop stops one item too early & direct \\
+3  & count\_positives     & ``at least zero'' instead of ``above zero'' & direct \\
+4  & first\_positive      & keeps looking after finding the answer & direct \\
+5  & best\_day            & compares with the wrong earlier value & story \\
+6  & cannot\_form\_teams  & the search stops too soon (fails only for 4) & story \\
+7  & runner\_up           & two updates done in the wrong order & story \\
+8  & longest\_hot\_streak & forgets to count a streak still running at the end & story \\
+9  & max\_talks           & remembers when a talk starts, not when it ends & story \\
+10 & parking\_fee         & rounds up wrongly on exact whole hours & story \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Problems 1--4 state the computation directly. Problems 5--10 are
+\emph{indirect}: the description is an everyday situation, and part of
+the challenge is recognising the computation hidden in the story.
+
+%======================================================================
+\section{The problems}
+
+In the code listings, line numbers are shown on the left; the
+``faulty line'' mentioned in each summary refers to these numbers in the
+faulty program.
+
+%----------------------------------------------------------------------
+\subsection{Problem 1: \texttt{max\_of\_three}}
+
+\paragraph{Description.} Consider a function \texttt{max\_of\_three(a, b, c)}
+that takes three integers and returns the largest of the three.
+
+\begin{codepair}
+\begin{minipage}[t]{0.48\textwidth}
+\codelabel{Correct}
+\begin{lstlisting}
+def max_of_three(a, b, c):
+    largest = a
+    if b > largest:
+        largest = b
+    if c > largest:
+        largest = c
+    return largest
+\end{lstlisting}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\codelabel{Faulty}
+\begin{lstlisting}
+def max_of_three(a, b, c):
+    largest = a
+    if b > largest:
+        largest = b
+    elif c > largest:
+        largest = c
+    return largest
+\end{lstlisting}
+\end{minipage}
+\end{codepair}
+
+\bugnote{Line~5 says ``otherwise, if'' (\texttt{elif}) instead of ``if''.
+Once \texttt{b} has beaten \texttt{a}, the program never looks at
+\texttt{c}, so it misses a \texttt{c} that is larger still.
+Counter-example: \texttt{max\_of\_three(1, 3, 5)} should give 5, but the
+faulty program gives 3.}
+
+\begin{itemize}[nosep]
+  \item Step 2 inputs: \texttt{max\_of\_three(2, 1, 3)} (line counts) and
+        \texttt{max\_of\_three(1, 5, 3)} (values).
+  \item Help examples: \texttt{max\_of\_three(4, 9, 2)},
+        \texttt{max\_of\_three(-3, -1, -7)}.
+  \item Reflection: line~5 shown changed back to \texttt{if c > largest:}
+        (the actual fix); ``describe how the behaviour changes''.
+\end{itemize}
+
+%----------------------------------------------------------------------
+\subsection{Problem 2: \texttt{smallest}}
+
+\paragraph{Description.} Write a function \texttt{smallest(nums)} that
+returns the smallest number in the list \texttt{nums}. You may assume
+\texttt{nums} contains at least one number.
+
+\begin{codepair}
+\begin{minipage}[t]{0.48\textwidth}
+\codelabel{Correct}
+\begin{lstlisting}
+def smallest(nums):
+    result = nums[0]
+    for i in range(1, len(nums)):
+        if nums[i] < result:
+            result = nums[i]
+    return result
+\end{lstlisting}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\codelabel{Faulty}
+\begin{lstlisting}
+def smallest(nums):
+    result = nums[0]
+    for i in range(1, len(nums) - 1):
+        if nums[i] < result:
+            result = nums[i]
+    return result
+\end{lstlisting}
+\end{minipage}
+\end{codepair}
+
+\bugnote{Line~3 stops the loop one item early, so the last number in the
+list is never looked at. Counter-example: \texttt{smallest([10, 20, 5])}
+should give 5, but the faulty program gives 10.}
+
+\begin{itemize}[nosep]
+  \item Step 2 inputs: \texttt{smallest([5, 3, 8])} and
+        \texttt{smallest([9, 2, 6, 4])}.
+  \item Help examples: \texttt{smallest([10, 20, 5])},
+        \texttt{smallest([-3, -7, -1])}.
+  \item Reflection: line~4 shown with ``$<$'' flipped to ``$>$'';
+        ``describe the resulting code in one line''.
+\end{itemize}
+
+%----------------------------------------------------------------------
+\subsection{Problem 3: \texttt{count\_positives}}
+
+\paragraph{Description.} Write a function \texttt{count\_positives(nums)}
+that returns how many numbers in the list \texttt{nums} are strictly
+greater than zero.
+
+\begin{codepair}
+\begin{minipage}[t]{0.48\textwidth}
+\codelabel{Correct}
+\begin{lstlisting}
+def count_positives(nums):
+    total = 0
+    for x in nums:
+        if x > 0:
+            total = total + 1
+    return total
+\end{lstlisting}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\codelabel{Faulty}
+\begin{lstlisting}
+def count_positives(nums):
+    total = 0
+    for x in nums:
+        if x >= 0:
+            total = total + 1
+    return total
+\end{lstlisting}
+\end{minipage}
+\end{codepair}
+
+\bugnote{Line~4 counts numbers that are \emph{at least} zero, so zero is
+wrongly counted as positive. Counter-example:
+\texttt{count\_positives([0, 1, 2])} should give 2, but the faulty
+program gives 3.}
+
+\begin{itemize}[nosep]
+  \item Step 2 inputs: \texttt{count\_positives([1, -2, 3, -4])} and
+        \texttt{count\_positives([-5, -6, -7])} (no zeros, so the mistake
+        stays hidden).
+  \item Help examples: \texttt{count\_positives([2, -1, 5])},
+        \texttt{count\_positives([-10, -20])}.
+  \item Reflection: line~5 shown changed to \texttt{total = total + x}
+        (adding up instead of counting); ``describe the resulting code''.
+\end{itemize}
+
+%----------------------------------------------------------------------
+\subsection{Problem 4: \texttt{first\_positive}}
+
+\paragraph{Description.} Write a function \texttt{first\_positive(nums)}
+that returns the first element of the list \texttt{nums} that is strictly
+greater than zero. If no such element exists, return \texttt{None}.
+
+\begin{codepair}
+\begin{minipage}[t]{0.48\textwidth}
+\codelabel{Correct}
+\begin{lstlisting}
+def first_positive(nums):
+    for x in nums:
+        if x > 0:
+            return x
+    return None
+\end{lstlisting}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\codelabel{Faulty}
+\begin{lstlisting}
+def first_positive(nums):
+    result = None
+    for x in nums:
+        if x > 0:
+            result = x
+    return result
+\end{lstlisting}
+\end{minipage}
+\end{codepair}
+
+\bugnote{The faulty program never stops once it finds a positive number;
+each later positive number overwrites the earlier one (line~5), so it
+returns the \emph{last} positive number, not the first.
+Counter-example: \texttt{first\_positive([2, -1, 7])} should give 2, but
+the faulty program gives 7.}
+
+\begin{itemize}[nosep]
+  \item Step 2 inputs: \texttt{first\_positive([-1, -2, 5, -3])} and
+        \texttt{first\_positive([-5, -6, 8])} (only one positive number
+        each, so ``first'' and ``last'' coincide).
+  \item Help examples: \texttt{first\_positive([-1, -2, -3])},
+        \texttt{first\_positive([4, -5, -6])}.
+  \item Reflection (no changed line): ``If \texttt{nums} has 10 elements,
+        how many times will line~5 be executed?''
+\end{itemize}
+
+%----------------------------------------------------------------------
+\subsection{Problem 5: \texttt{best\_day}}
+
+\paragraph{Description.} A shop records its sales for a number of
+consecutive days in the list \texttt{sales}, where \texttt{sales[0]} is
+day~0, \texttt{sales[1]} is day~1, and so on. Write a function
+\texttt{best\_day(sales)} that returns the day on which the shop sold the
+most. If several days tie for the most sales, return the earliest of
+them. You may assume the shop was open for at least one day.
+
+\paragraph{Hidden computation.} The position of the largest number in a
+list.
+
+\begin{codepair}
+\begin{minipage}[t]{0.48\textwidth}
+\codelabel{Correct}
+\begin{lstlisting}
+def best_day(sales):
+    best = 0
+    for d in range(1, len(sales)):
+        if sales[d] > sales[best]:
+            best = d
+    return best
+\end{lstlisting}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\codelabel{Faulty}
+\begin{lstlisting}
+def best_day(sales):
+    best = 0
+    for d in range(1, len(sales)):
+        if sales[d] > sales[d - 1]:
+            best = d
+    return best
+\end{lstlisting}
+\end{minipage}
+\end{codepair}
+
+\bugnote{Line~4 compares each day with the \emph{previous} day instead
+of with the best day so far, so it reports the last day that beat the
+day before it. Counter-example: \texttt{best\_day([5, 1, 3])} should give
+day~0, but the faulty program gives day~2.}
+
+\begin{itemize}[nosep]
+  \item Step 2 inputs: \texttt{best\_day([7, 2, 1])} and
+        \texttt{best\_day([2, 8, 3])}.
+  \item Help examples: \texttt{best\_day([4, 9, 6])},
+        \texttt{best\_day([5, 5, 2])} (the second shows the tie rule).
+  \item Reflection: line~4 shown with the fix,
+        \texttt{if sales[d] > sales[best]:}; ``describe how the behaviour
+        changes''.
+\end{itemize}
+
+%----------------------------------------------------------------------
+\subsection{Problem 6: \texttt{cannot\_form\_teams}}
+
+\paragraph{Description.} A coach has \texttt{n} players (\texttt{n} is at
+least 2) and wants to split all of them into teams of equal size, with at
+least 2 players per team and at least 2 teams. Write a function
+\texttt{cannot\_form\_teams(n)} that returns \texttt{True} if this is
+impossible and \texttt{False} if it can be done.
+
+\paragraph{Hidden computation.} Whether \texttt{n} is a prime number (a
+split is possible exactly when \texttt{n} can be written as a product of
+two numbers that are each at least 2).
+
+\begin{codepair}
+\begin{minipage}[t]{0.48\textwidth}
+\codelabel{Correct}
+\begin{lstlisting}
+def cannot_form_teams(n):
+    for size in range(2, n):
+        if n % size == 0:
+            return False
+    return True
+\end{lstlisting}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\codelabel{Faulty}
+\begin{lstlisting}
+def cannot_form_teams(n):
+    for size in range(2, n // 2):
+        if n % size == 0:
+            return False
+    return True
+\end{lstlisting}
+\end{minipage}
+\end{codepair}
+
+\bugnote{Line~2 tries too few team sizes. For almost every \texttt{n}
+this still finds a valid split, but for \texttt{n = 4} it tries no sizes
+at all and wrongly says a split is impossible. \textbf{4 is the only
+counter-example} (checked for every \texttt{n} from 2 to 100), which makes
+this deliberately the hardest Step~3 in the set.}
+
+\begin{itemize}[nosep]
+  \item Step 2 inputs: \texttt{cannot\_form\_teams(15)} and
+        \texttt{cannot\_form\_teams(7)}.
+  \item Help examples: \texttt{cannot\_form\_teams(11)},
+        \texttt{cannot\_form\_teams(9)}.
+  \item Reflection (no changed line): ``If \texttt{n} is 20, how many
+        times will line~3 be executed?'' (20 is used rather than 4 so the
+        question does not give away the counter-example.)
+\end{itemize}
+
+%----------------------------------------------------------------------
+\subsection{Problem 7: \texttt{runner\_up}}
+
+\paragraph{Description.} In a contest, every participant gets a different
+score, recorded in the list \texttt{scores} in no particular order. Write
+a function \texttt{runner\_up(scores)} that returns the score of the
+participant who came second. You may assume there are at least two
+participants.
+
+\paragraph{Hidden computation.} The second-largest number in a list.
+
+\begin{codepair}
+\begin{minipage}[t]{0.48\textwidth}
+\codelabel{Correct}
+\begin{lstlisting}
+def runner_up(scores):
+    first = max(scores[0], scores[1])
+    second = min(scores[0], scores[1])
+    for s in scores[2:]:
+        if s > first:
+            second = first
+            first = s
+        elif s > second:
+            second = s
+    return second
+\end{lstlisting}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\codelabel{Faulty}
+\begin{lstlisting}
+def runner_up(scores):
+    first = max(scores[0], scores[1])
+    second = min(scores[0], scores[1])
+    for s in scores[2:]:
+        if s > first:
+            first = s
+            second = first
+        elif s > second:
+            second = s
+    return second
+\end{lstlisting}
+\end{minipage}
+\end{codepair}
+
+\bugnote{Lines~6 and~7 are in the wrong order: the old winner should
+become second \emph{before} the new winner is recorded. As written,
+``second'' copies the \emph{new} winner, so first and second end up
+equal. Counter-example: \texttt{runner\_up([1, 2, 3])} should give 2, but
+the faulty program gives 3. Any list where the top score appears after
+the first two entries exposes it.}
+
+\begin{itemize}[nosep]
+  \item Step 2 inputs: \texttt{runner\_up([9, 5, 7])} and
+        \texttt{runner\_up([4, 6, 1, 5])} (the top score is among the
+        first two, so lines~6--7 never run).
+  \item Help examples: \texttt{runner\_up([3, 8])},
+        \texttt{runner\_up([10, 2, 7])}.
+  \item Reflection (no changed line): ``If there are 6 participants, what
+        is the largest number of times line~9 can be executed?''
+\end{itemize}
+
+%----------------------------------------------------------------------
+\subsection{Problem 8: \texttt{longest\_hot\_streak}}
+
+\paragraph{Description.} A weather station records one temperature per
+day in the list \texttt{temps}. Write a function
+\texttt{longest\_hot\_streak(temps)} that returns the length of the
+longest run of consecutive days on which the temperature was above 30,
+or 0 if there were no such days.
+
+\paragraph{Hidden computation.} The longest run of consecutive list
+items above a threshold.
+
+\begin{codepair}
+\begin{minipage}[t]{0.48\textwidth}
+\codelabel{Correct}
+\begin{lstlisting}
+def longest_hot_streak(temps):
+    best = 0
+    run = 0
+    for t in temps:
+        if t > 30:
+            run = run + 1
+            if run > best:
+                best = run
+        if t <= 30:
+            run = 0
+    return best
+\end{lstlisting}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\codelabel{Faulty}
+\begin{lstlisting}
+def longest_hot_streak(temps):
+    best = 0
+    run = 0
+    for t in temps:
+        if t > 30:
+            run = run + 1
+        if t <= 30:
+            if run > best:
+                best = run
+            run = 0
+    return best
+\end{lstlisting}
+\end{minipage}
+\end{codepair}
+
+\bugnote{The record is only updated when a streak \emph{ends} on a cooler
+day (lines~8--9). A hot streak that is still going on the last day is
+never counted. Counter-example: \texttt{longest\_hot\_streak([31, 32])}
+should give 2, but the faulty program gives 0.}
+
+\begin{itemize}[nosep]
+  \item Step 2 inputs:\newline
+        \texttt{longest\_hot\_streak([31, 25, 33, 34, 20])} and
+        \texttt{longest\_hot\_streak([35, 28, 29])} (both end on a cool
+        day, so every streak gets closed and counted).
+  \item Help examples: \texttt{longest\_hot\_streak([25, 20])},
+        \texttt{longest\_hot\_streak([33, 31, 22, 35])}.
+  \item Reflection (no changed line): ``In one sentence, what does
+        \texttt{best} hold after the loop ends?''
+\end{itemize}
+
+%----------------------------------------------------------------------
+\subsection{Problem 9: \texttt{max\_talks}}
+
+\paragraph{Description.} A conference lists its talks as
+\texttt{(start, end)} pairs in the list \texttt{talks}, sorted by end
+time. Going through the list in order, you attend a talk whenever it
+starts no earlier than the moment your previous talk ended (back-to-back
+talks are fine). Write a function \texttt{max\_talks(talks)} that returns
+how many talks you attend.
+
+\paragraph{Hidden computation.} A ``greedy'' selection of
+non-overlapping time slots.
+
+\begin{codepair}
+\begin{minipage}[t]{0.48\textwidth}
+\codelabel{Correct}
+\begin{lstlisting}
+def max_talks(talks):
+    count = 0
+    free_at = 0
+    for start, end in talks:
+        if start >= free_at:
+            count = count + 1
+            free_at = end
+    return count
+\end{lstlisting}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\codelabel{Faulty}
+\begin{lstlisting}
+def max_talks(talks):
+    count = 0
+    free_at = 0
+    for start, end in talks:
+        if start >= free_at:
+            count = count + 1
+            free_at = start
+    return count
+\end{lstlisting}
+\end{minipage}
+\end{codepair}
+
+\bugnote{Line~7 remembers when the attended talk \emph{started} rather
+than when it \emph{ends}, so a later talk that overlaps it is wrongly
+accepted. Counter-example: \texttt{max\_talks([(1, 4), (2, 5)])} should
+give 1, but the faulty program gives 2.}
+
+\begin{itemize}[nosep]
+  \item Step 2 inputs: \texttt{max\_talks([(1, 2), (3, 5), (6, 8)])} and
+        \texttt{max\_talks([(2, 3), (4, 6)])} (no overlaps).
+  \item Help examples: \texttt{max\_talks([(1, 3), (3, 4)])} (shows
+        back-to-back is allowed), \texttt{max\_talks([(1, 10)])}.
+  \item Reflection: line~7 shown with the fix, \texttt{free\_at = end};
+        ``describe how the behaviour changes''.
+\end{itemize}
+
+%----------------------------------------------------------------------
+\subsection{Problem 10: \texttt{parking\_fee}}
+
+\paragraph{Description.} A car park charges 20 for the first hour and 10
+for each additional hour. Any part of an hour counts as a full hour. The
+fee for a single stay never exceeds 100. Write a function
+\texttt{parking\_fee(minutes)} that returns the fee for parking
+\texttt{minutes} minutes. You may assume \texttt{minutes} is at least 1.
+
+\paragraph{Hidden computation.} Rounding up to whole hours, then a fee
+with a maximum.
+
+\begin{codepair}
+\begin{minipage}[t]{0.48\textwidth}
+\codelabel{Correct}
+\begin{lstlisting}
+def parking_fee(minutes):
+    hours = (minutes + 59) // 60
+    fee = 20 + (hours - 1) * 10
+    if fee > 100:
+        fee = 100
+    return fee
+\end{lstlisting}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\codelabel{Faulty}
+\begin{lstlisting}
+def parking_fee(minutes):
+    hours = minutes // 60 + 1
+    fee = 20 + (hours - 1) * 10
+    if fee > 100:
+        fee = 100
+    return fee
+\end{lstlisting}
+\end{minipage}
+\end{codepair}
+
+\bugnote{Line~2 rounds up correctly \emph{except} for stays of an exact
+number of hours, where it adds an extra hour that was never used.
+Counter-example: \texttt{parking\_fee(60)} should give 20, but the faulty
+program gives 30. The only counter-examples are 60, 120, \ldots, 480
+minutes: from 540 minutes upward both programs hit the maximum of 100,
+which hides the mistake.}
+
+\begin{itemize}[nosep]
+  \item Step 2 inputs: \texttt{parking\_fee(90)} and
+        \texttt{parking\_fee(200)} (neither is a whole number of hours).
+  \item Help examples: \texttt{parking\_fee(30)},
+        \texttt{parking\_fee(1000)} (the second shows the maximum).
+  \item Reflection: line~2 shown with the fix,
+        \texttt{hours = (minutes + 59) // 60}; ``describe how the
+        behaviour changes''.
+\end{itemize}
+
+%======================================================================
+\section{How the example inputs were checked}
+
+For every problem, each Step~2 input and each help example was run
+through both programs to confirm that they give the \emph{same} answer
+(so none of them reveals the mistake), and each counter-example quoted
+above was run to confirm that the answers \emph{differ}. For
+\texttt{cannot\_form\_teams} and \texttt{parking\_fee}, where the claim is
+that only a few specific inputs expose the mistake, every input in the
+relevant range was tried (2--100 players; 1--1440 minutes) to confirm the
+claim.
+
+\section{Order in which students see the problems}
+
+Problems are presented in the order listed above (by their number in the
+database), and a student who picks Python works through all ten. The
+order is not currently shuffled between students; if the study design
+needs to rule out order effects, that remains to be added.
+
+\end{document}

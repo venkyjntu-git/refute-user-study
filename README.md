@@ -88,19 +88,48 @@ sequencing is purely a frontend loop over `/api/session` calls. When the
 list is exhausted, the student sees an "All done" screen instead of another
 task.
 
+## Repository layout
+
+```
+Method.md                 study method / design rationale
+render.yaml               Render Blueprint (API + static frontend)
+backend/
+  main.py                 FastAPI app — all /api/* routes
+  models.py, schemas.py   SQLAlchemy models, Pydantic request/response types
+  database.py             engine setup (SQLite default, Postgres via DATABASE_URL)
+  sandbox.py              subprocess execution + sys.settrace capture
+  trace_table.py          builds Step-2 trace tables and scores answers
+  seed_data.py            inserts/refreshes the sample tasks
+  migrate_*.py            idempotent column migrations for existing DBs
+frontend/src/
+  App.jsx                 session flow + multi-task sequencing
+  api.js                  fetch wrappers for the backend
+  components/             TaskIntro, Step1IOPairs, Step2Trace, Step3CounterExample
+```
+
 ## Quick start
+
+Requires Python ≥ 3.12 and Node ≥ 22.13 (for pnpm 11).
 
 ### Backend
 ```bash
 cd backend
-python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
+python -m venv venv
+source venv/bin/activate      # Windows: venv\Scripts\activate
+pip install -r requirements.txt   # or: uv sync
 python seed_data.py          # inserts the sample tasks (max_of_three plus three
                               # Code-Comprehension-proxy examples — smallest,
-                              # count_positives, first_positive)
+                              # count_positives, first_positive — plus three
+                              # indirect, scenario-framed tasks — best_day,
+                              # cannot_form_teams, runner_up — plus three
+                              # abstraction-based ones — longest_hot_streak,
+                              # max_talks, parking_fee)
 uvicorn main:app --reload --port 8000
 ```
 API docs: http://localhost:8000/docs
+
+With no configuration the backend uses a local SQLite file
+(`backend/refute_study.db`); see "Configuration" to point it at Postgres.
 
 ### Frontend
 ```bash
@@ -111,6 +140,56 @@ pnpm start
 Runs on http://localhost:3000 and proxies `/api/*` to `localhost:8000`
 (see `"proxy"` in `package.json`; set `REACT_APP_API_BASE` instead if you
 deploy them separately).
+
+## Configuration
+
+Backend settings are read from environment variables, or from `backend/.env`
+(copy `backend/.env.example`):
+
+| variable          | default                          | purpose |
+|-------------------|----------------------------------|---------|
+| `DATABASE_URL`    | `sqlite:///./refute_study.db`    | Connection string. A `postgres://` / `postgresql://` URL (e.g. the Supabase session pooler) is rewritten to `postgresql+psycopg://` automatically. |
+| `ALLOWED_ORIGINS` | unset → all origins allowed      | Comma-separated frontend origins for CORS. Set it in any deployed environment. |
+
+Frontend: `REACT_APP_API_BASE` (build-time) is the full origin of the API,
+e.g. `https://refute-study-api.onrender.com`. Leave it unset locally to use
+the dev-server proxy.
+
+## Deployment (Render)
+
+`render.yaml` is a Render Blueprint defining two services:
+
+- **`refute-study-api`** — FastAPI on Python 3.12.7. On every boot it runs all
+  three `migrate_*.py` scripts, then `seed_data.py`, then uvicorn (all of
+  these are idempotent). Health check: `GET /api/health`.
+- **`refute-study-web`** — static CRA build with pnpm, Node 24.18.0, with an
+  SPA fallback rewrite to `index.html`.
+
+To deploy: Render Dashboard → New → Blueprint → select this repo. Render
+prompts for `DATABASE_URL` (API) and `REACT_APP_API_BASE` (web) so secrets
+stay out of git. Make sure `ALLOWED_ORIGINS` on the API matches the web
+service's public URL.
+
+## API overview
+
+| method | path | purpose |
+|--------|------|---------|
+| GET  | `/api/health` | liveness check |
+| GET  | `/api/languages` | languages with at least one task |
+| GET  | `/api/tasks` | task list (used for multi-task sequencing) |
+| POST | `/api/session` | start a session (`language`, optional `task_id`) |
+| POST | `/api/event` | log a `shown` event when a step renders |
+| POST | `/api/step1/submit` | submit the 3 I/O pairs |
+| POST | `/api/step1/examples` | one-time worked-example reveal (after a wrong attempt) |
+| POST | `/api/step2/submit` | single trace submission (control flow, data flow, mutation) |
+| POST | `/api/step3/my_work` | recap of the student's own Step 1/2 answers |
+| POST | `/api/step3/submit` | counter-example input + both output predictions |
+| GET  | `/api/admin/export.csv` | every event, one row per event |
+| GET  | `/api/admin/trace_export.csv` | control-flow cells |
+| GET  | `/api/admin/data_flow_export.csv` | data-flow cells |
+| GET  | `/api/admin/sessions/{id}/events` | one session's event log as JSON |
+
+Full request/response schemas are at `/docs`.
 
 ## Data model / timing
 
@@ -305,6 +384,11 @@ tracer for it.
   comparison instead of strict inequality/equality.
 - **Auth**: `student_identifier` is a free-text field, not authenticated.
   Fine for a lab study with an issued ID; add real auth if deploying broadly.
+- **Admin endpoints are unauthenticated**: everything under `/api/admin/*`
+  (including the CSV exports of every student's answers) is reachable by
+  anyone who knows the API URL — and the Render deployment is public.
+  `ALLOWED_ORIGINS` only restricts browsers, not direct requests. Add at
+  least a shared-secret header check before collecting real data.
 - **Institute**: chosen from a fixed dropdown in the UI for consistency, but
   `StudySession.institute` is a plain string, not validated or constrained
   server-side (same trust level as `student_identifier` — study metadata,
@@ -331,9 +415,14 @@ tracer for it.
   missing trace cells. If you want a hard server-side requirement, add one
   in `submit_trace`; today it deliberately doesn't have one.
 - **Task order is fixed (`id` ascending), not randomized or
-  counterbalanced**: `seed_data.py` inserts four Python tasks
-  (`max_of_three`, `smallest`, `count_positives`, `first_positive`), and
-  every student who picks Python now works through all four, in that same
+  counterbalanced**: `seed_data.py` inserts ten Python tasks
+  (`max_of_three`, `smallest`, `count_positives`, `first_positive`, then
+  the indirect tasks `best_day`, `cannot_form_teams`, `runner_up`,
+  `longest_hot_streak`, `max_talks`, `parking_fee` — whose descriptions
+  are real-world scenarios that abstract the underlying computation:
+  index of the maximum, primality, second largest, longest run, greedy
+  activity selection, rounding up), and every student who picks Python
+  now works through all ten, in that same
   fixed order — `App.jsx` fetches `GET /api/tasks`, filters/sorts by `id`
   for the chosen language, and steps through it via `POST /api/session`
   with an explicit `task_id` after each `fully_successful` Step 3. There's
