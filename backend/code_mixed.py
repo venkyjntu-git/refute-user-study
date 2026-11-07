@@ -10,8 +10,11 @@ Conventions used throughout, so the versions stay comparable:
   absolute difference, ...) stay in English, as do all identifiers and code
   in backticks. The surrounding prose is in the native language.
 - Indian languages are written in their native script; English words stay in
-  Latin script inside it. German is written as German with English
-  technical terms ("Denglisch").
+  Latin script inside it.
+- German is the exception: the WG's German version is standard German
+  (formal "Sie", German technical terms such as Funktion, Liste), with only
+  identifiers and code in English. Its P2 story is set in Kühnhaide
+  (Sachsen) instead of Leh.
 - Every requirement of the English text is kept, including the ones the
   bugs hinge on: counting from 1 / dates from 1 January, the tie rule
   (smallest position / earliest date), "greater than T", "some pair of
@@ -56,12 +59,12 @@ CODE_MIXED = {
                 "List empty હોઈ શકે છે અથવા તેમાં ફક્ત એક જ element હોઈ શકે છે."
             ),
             "de": (
-                "Schreibe eine function `has_large_change(readings, T)`, die eine list "
-                "von integer `readings` und einen positive integer `T` nimmt. Sie "
-                "returnt `True`, wenn die absolute difference zwischen irgendeinem pair "
-                "von consecutive elements von `readings` greater als `T` ist, und sonst "
-                "`False`. Die list darf empty sein oder nur ein einziges element "
-                "enthalten."
+                "Schreiben Sie eine Funktion `has_large_change(readings, T)`, die eine "
+                "Liste `readings` von Integer-Werten und einen positiven Integer-Wert "
+                "`T` entgegennimmt. Wenn die absolute Differenz zwischen irgendeinem "
+                "Paar aufeinanderfolgender Elemente von `readings` größer als `T` ist, "
+                "gibt sie `True` zurück, andernfalls `False`. Die Liste kann leer sein "
+                "oder nur ein Element enthalten."
             ),
         },
         "contextualized": {
@@ -126,20 +129,21 @@ CODE_MIXED = {
                 "જરૂર હોય તો `True` return કરે છે, નહીં તો `False`."
             ),
             "de": (
-                "Der patient monitor eines Krankenhauses recordet die heart rate eines "
-                "Patienten in beats per minute (bpm), einmal pro second. Eine gesunde "
-                "heart rate ändert sich von einer second zur nächsten nur leicht. Die "
-                "clinical guidelines des Krankenhauses sagen, dass eine nurse eine "
-                "recording reviewen muss, wenn sich die heart rate zwischen zwei "
-                "consecutive readings jemals um mehr als `T` bpm ändert: ein "
-                "plötzlicher drop kann bedeuten, dass das Herz versagt, und ein "
-                "plötzlicher rise kann bedeuten, dass der Patient in distress ist. Eine "
-                "recording darf empty sein oder nur ein einziges reading enthalten, zum "
-                "Beispiel wenn der monitor gerade erst angeschlossen wurde. Schreibe "
-                "eine function `has_large_change(readings, T)`, die die list der "
-                "readings (whole numbers) und den threshold `T` (eine positive whole "
-                "number) nimmt und `True` returnt, wenn die recording ein review "
-                "braucht, und sonst `False`."
+                "Der Patientenmonitor eines Krankenhauses erfasst einmal pro Sekunde die "
+                "Herzfrequenz eines Patienten, gemessen in beats per minute (bpm). Eine "
+                "gesunde Herzfrequenz ändert sich von einer Sekunde zur nächsten nur "
+                "geringfügig. Die klinischen Richtlinien des Krankenhauses besagen, dass "
+                "eine Pflegekraft eine Aufzeichnung überprüfen muss, wenn sich die "
+                "Herzfrequenz zwischen zwei aufeinanderfolgenden Messwerten jemals um "
+                "mehr als `T` bpm ändert: Ein plötzlicher Abfall kann bedeuten, dass das "
+                "Herz versagt, und ein plötzlicher Anstieg kann bedeuten, dass der "
+                "Patient in Not ist. Eine Aufzeichnung kann leer sein oder nur einen "
+                "einzelnen Messwert enthalten, zum Beispiel wenn der Monitor gerade erst "
+                "angebracht wurde. Schreiben Sie eine Funktion "
+                "`has_large_change(readings, T)`, die die Liste der Messwerte (ganze "
+                "Zahlen) und den Schwellenwert `T` (eine positive ganze Zahl) "
+                "entgegennimmt und `True` zurückgibt, wenn die Aufzeichnung überprüft "
+                "werden muss, und andernfalls `False`."
             ),
         },
     },
@@ -147,34 +151,34 @@ CODE_MIXED = {
         "direct": {
             "te": (
                 "Numbers ఉన్న ఒక non-empty list ని తీసుకుని, దానిలోని largest value "
-                "యొక్క position ని return చేసే `warmest(temps)` రాయండి; positions ని 1 "
+                "యొక్క position ని return చేసే `largest(nums)` రాయండి; positions ని 1 "
                 "నుండి లెక్కించాలి. Largest value ఒకటి కంటే ఎక్కువ సార్లు వస్తే, "
                 "వాటిలో smallest position ని return చేయండి."
             ),
             "ta": (
                 "Numbers கொண்ட ஒரு non-empty list-ஐ எடுத்துக்கொண்டு, அதன் largest "
-                "value-இன் position-ஐ return செய்யும் `warmest(temps)`-ஐ எழுதுங்கள்; "
+                "value-இன் position-ஐ return செய்யும் `largest(nums)`-ஐ எழுதுங்கள்; "
                 "positions-ஐ 1-இலிருந்து எண்ண வேண்டும். Largest value ஒன்றுக்கு "
                 "மேற்பட்ட முறை வந்தால், அவற்றில் smallest position-ஐ return "
                 "செய்யுங்கள்."
             ),
             "hi": (
-                "`warmest(temps)` लिखिए जो numbers की एक non-empty list लेता है और "
+                "`largest(nums)` लिखिए जो numbers की एक non-empty list लेता है और "
                 "उसकी largest value की position return करता है, positions को 1 से "
                 "गिनते हुए। अगर largest value एक से ज़्यादा बार आती है, तो ऐसी सबसे "
                 "छोटी (smallest) position return कीजिए।"
             ),
             "gu": (
-                "`warmest(temps)` લખો, જે numbers ની એક non-empty list લે છે અને તેની "
+                "`largest(nums)` લખો, જે numbers ની એક non-empty list લે છે અને તેની "
                 "largest value ની position return કરે છે; positions ને 1 થી ગણવાની "
                 "છે. જો largest value એક કરતાં વધુ વાર આવે, તો એમાંથી સૌથી નાની "
                 "(smallest) position return કરો."
             ),
             "de": (
-                "Schreibe `warmest(temps)`, das eine non-empty list von numbers nimmt "
-                "und die position ihres largest value returnt, wobei die positions ab 1 "
-                "gezählt werden. Wenn der largest value mehr als einmal vorkommt, "
-                "returne die kleinste (smallest) solche position."
+                "Schreiben Sie eine Funktion `largest(nums)`, die eine nicht-leere Liste "
+                "`nums` von Zahlen entgegennimmt und die Position ihres größten Werts "
+                "zurückgibt, wobei die Positionen ab 1 gezählt werden. Kommt der größte "
+                "Wert mehrfach vor, geben Sie die kleinste dieser Positionen zurück."
             ),
         },
         "contextualized": {
@@ -223,14 +227,16 @@ CODE_MIXED = {
                 "warm હોય, તો સૌથી પહેલી (earliest) date return કરો."
             ),
             "de": (
-                "Eine weather station in Leh, einem der kältesten bewohnten Orte "
-                "Indiens, recordet im January die lowest temperature jeder Nacht, in "
-                "degrees Celsius auf eine decimal place genau. Die list hat mindestens "
-                "1 entry, beginnt mit der Nacht des 1. January und hat eine entry pro "
-                "Nacht, bis zur zuletzt recordeten Nacht. Die district administration "
-                "möchte wissen, welche Nacht die wärmste war. Schreibe `warmest(temps)`, "
-                "das die list nimmt und das date im January der wärmsten Nacht returnt. "
-                "Wenn mehr als eine Nacht gleich warm war, returne das earliest date."
+                "Eine Wetterstation in Kühnhaide / Sachsen, einem der kältesten "
+                "bewohnten Orte Deutschlands, zeichnet die Tiefsttemperatur jeder "
+                "Januarnacht in Grad Celsius mit einer Dezimalstelle auf. Die Liste "
+                "enthält mindestens 1 Eintrag, beginnt mit der Nacht vom 1. Januar und "
+                "enthält einen Eintrag pro Nacht, bis zur zuletzt aufgezeichneten Nacht. "
+                "Die Bezirksverwaltung möchte wissen, welche Nacht die wärmste war. "
+                "Schreiben Sie eine Funktion `warmest(temps)`, die die Liste "
+                "entgegennimmt und das Datum im Januar der wärmsten Nacht zurückgibt. "
+                "Wenn mehrere Nächte gleich warm waren, geben Sie das früheste Datum "
+                "zurück."
             ),
         },
     },

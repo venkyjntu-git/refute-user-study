@@ -138,6 +138,12 @@ def _session_row(sess, part, task, evs, views) -> dict:
         "schooling_medium": part.schooling_medium,
         "english_proficiency": part.english_proficiency,
         "proficiency_band": _band(part.english_proficiency),
+        "mother_language_proficiency": part.mother_language_proficiency,
+        "programming_proficiency": part.programming_proficiency,
+        "programming_band": _band(part.programming_proficiency),
+        "programming_courses": part.programming_courses,
+        "age": part.age,
+        "gender": part.gender,
         "condition_row": part.condition_row,
         "position": sess.position,
         "variant": task.variant_key,
@@ -329,6 +335,47 @@ def analyse(db: Session, institute: Optional[str] = None) -> Dict:
                 "median_s1_seconds": _median(r["s1_seconds"] for r in rs),
             })
 
+    # --- by self-rated programming proficiency ------------------------------------
+    by_programming = []
+    for band, _ in PROFICIENCY_BANDS:
+        for form in FORMS:
+            rs = [r for r in rows if r["programming_band"] == band and r["form"] == form]
+            closed = [r for r in rs if r["s3_closed"]]
+            by_programming.append({
+                "band": band, "form": form, "sessions": len(rs),
+                "step1_first_attempt_correct": _rate(rs, lambda r: r["s1_first_correct"]),
+                "step2_fully_correct": _rate([r for r in rs if r["s2_done"]],
+                                             lambda r: r["s2_fully_correct"]),
+                "success": _rate(closed, lambda r: r["s3_success"]),
+            })
+
+    # --- who took part (one row per participant) ---------------------------------
+    people = list({r["participant_id"]: r for r in rows}.values())
+    ages = [p["age"] for p in people if p["age"] is not None]
+    courses = [p["programming_courses"] for p in people if p["programming_courses"] is not None]
+
+    def distribution(field):
+        counts = {str(v): sum(1 for p in people if p[field] == v) for v in range(1, 6)}
+        counts["no answer"] = sum(1 for p in people if p[field] is None)
+        return counts
+
+    participants_summary = {
+        "participants": len(people),
+        "gender": {g: sum(1 for p in people if p["gender"] == g)
+                   for g in ("Female", "Male", "Other", "NoResponse")}
+                  | {"no answer": sum(1 for p in people if p["gender"] is None)},
+        "age": {"median": _median(ages), "min": min(ages) if ages else None,
+                "max": max(ages) if ages else None},
+        "programming_courses": {"median": _median(courses), "mean": _mean(courses),
+                                "min": min(courses) if courses else None,
+                                "max": max(courses) if courses else None},
+        "proficiency": {
+            "english": distribution("english_proficiency"),
+            "mother_language": distribution("mother_language_proficiency"),
+            "programming": distribution("programming_proficiency"),
+        },
+    }
+
     # --- per variant and assignment balance --------------------------------------
     variants = [{"variant": v, **_cell(by(variant=v))}
                 for v in sorted({r["variant"] for r in rows})]
@@ -358,5 +405,7 @@ def analyse(db: Session, institute: Optional[str] = None) -> Dict:
         "switching": switching,
         "switching_by_language": switching_by_language,
         "proficiency": proficiency,
+        "by_programming": by_programming,
+        "participants_summary": participants_summary,
         "variants": variants,
     }

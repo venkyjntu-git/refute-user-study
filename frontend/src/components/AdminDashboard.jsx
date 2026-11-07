@@ -108,6 +108,8 @@ function Results({ a }) {
         </div>
       </div>
 
+      <Participants s={a.participants_summary} />
+
       <Section
         title="RQ1 · Correctness by form"
         note="Refuted = valid input with both outputs right, within the attempt limit. Rates are over finished problems."
@@ -274,6 +276,21 @@ function Results({ a }) {
         />
       </Section>
 
+      <Section title="By self-rated programming proficiency">
+        <Table
+          columns={[
+            { label: "Programming", render: (r) => r.band },
+            { label: "Form", render: (r) => FORM_LABEL[r.form] },
+            { label: "Sessions", render: (r) => r.sessions },
+            { label: "Step 1 right 1st time", render: (r) => fmtRate(r.step1_first_attempt_correct) },
+            { label: "Step 2 fully correct", render: (r) => fmtRate(r.step2_fully_correct) },
+            { label: "Refuted", render: (r) => fmtRate(r.success) },
+          ]}
+          rows={a.by_programming}
+          rowKey={(r) => `${r.band}-${r.form}`}
+        />
+      </Section>
+
       <Section title="Per variant">
         <Table
           columns={[
@@ -289,6 +306,52 @@ function Results({ a }) {
   );
 }
 
+const GENDER_LABEL = { NoResponse: "Prefer not to say" };
+const RATING_KEYS = ["1", "2", "3", "4", "5", "no answer"];
+
+// Who took part, from the participant questionnaire (one count per student).
+function Participants({ s }) {
+  if (!s) return null;
+  const range = (x) => (x.min === null ? "—" : `${x.min}–${x.max}`);
+  return (
+    <Section title="Participants" note={`From the questionnaire; ${s.participants} students.`}>
+      <Table
+        columns={[
+          { label: "Gender", render: (r) => GENDER_LABEL[r[0]] || r[0] },
+          { label: "Students", render: (r) => r[1] },
+        ]}
+        rows={Object.entries(s.gender).filter(([g, n]) => n > 0 || g !== "no answer")}
+        rowKey={(r) => r[0]}
+      />
+      <Table
+        columns={[
+          { label: "", render: (r) => r.label },
+          { label: "Median", render: (r) => fmtNum(r.v.median) },
+          { label: "Mean", render: (r) => fmtNum(r.v.mean) },
+          { label: "Range", render: (r) => range(r.v) },
+        ]}
+        rows={[
+          { label: "Age (years)", v: s.age },
+          { label: "Programming courses taken", v: s.programming_courses },
+        ]}
+        rowKey={(r) => r.label}
+      />
+      <Table
+        columns={[
+          { label: "Self-rated proficiency (1 = novice, 5 = expert)", render: (r) => r.label },
+          ...RATING_KEYS.map((k) => ({ label: k, render: (r) => r.d[k] })),
+        ]}
+        rows={[
+          { label: "English", d: s.proficiency.english },
+          { label: "Mother language", d: s.proficiency.mother_language },
+          { label: "Computer programming", d: s.proficiency.programming },
+        ]}
+        rowKey={(r) => r.label}
+      />
+    </Section>
+  );
+}
+
 const yes = (v) => (v ? "✓" : "✗");
 
 function Responses({ rows }) {
@@ -300,11 +363,12 @@ function Responses({ rows }) {
           <thead>
             <tr>
               <th>Student</th><th>Institute</th><th>#</th><th>Variant</th><th>Lang</th><th>Eng.</th>
+              <th>Prog.</th><th>Courses</th><th>Age</th><th>Gender</th>
               <th>S1 tries</th><th>S1 1st ok</th><th>S2 acc.</th><th>S3 tries</th><th>Refuted</th><th>Mixed</th>
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={12} className="admin-empty">No responses yet.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={16} className="admin-empty">No responses yet.</td></tr>}
             {rows.map((r) => (
               <React.Fragment key={r.session_id}>
                 <tr className="clickable" onClick={() => setOpen(open === r.session_id ? null : r.session_id)}>
@@ -314,6 +378,10 @@ function Responses({ rows }) {
                   <td>{r.variant}</td>
                   <td>{r.native_language}</td>
                   <td>{fmtNum(r.english_proficiency)}</td>
+                  <td>{fmtNum(r.programming_proficiency)}</td>
+                  <td>{fmtNum(r.programming_courses)}</td>
+                  <td>{fmtNum(r.age)}</td>
+                  <td>{r.gender ? GENDER_LABEL[r.gender] || r.gender : "—"}</td>
                   <td>{r.s1_attempts}</td>
                   <td>{yes(r.s1_first_correct)}</td>
                   <td>{fmtNum(r.s2_cell_accuracy, "%")}</td>
@@ -323,7 +391,7 @@ function Responses({ rows }) {
                 </tr>
                 {open === r.session_id && (
                   <tr className="detail-row">
-                    <td colSpan={12}>
+                    <td colSpan={16}>
                       <div><strong>Step 3 inputs:</strong> {r.s3_inputs.length ? r.s3_inputs.join("  ·  ") : "—"}</div>
                       <div><strong>How they found it:</strong> {r.s3_how_found.length ? r.s3_how_found.join("  ·  ") : "—"}</div>
                       <div>

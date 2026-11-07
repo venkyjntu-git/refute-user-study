@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from pydantic import BaseModel, Field
 
 
@@ -48,7 +48,13 @@ class RegisterParticipantRequest(BaseModel):
     institute: str
     native_language: str
     schooling_medium: str
+    # Participant questionnaire; proficiencies are 1 (novice) to 5 (expert).
     english_proficiency: int = Field(ge=1, le=5)
+    mother_language_proficiency: int = Field(ge=1, le=5)
+    programming_proficiency: int = Field(ge=1, le=5)
+    programming_courses: int = Field(ge=0, le=50)
+    age: int = Field(ge=10, le=100)
+    gender: Literal["Female", "Male", "Other", "NoResponse"]
 
 
 class RegisterParticipantResponse(BaseModel):

@@ -64,6 +64,22 @@ for problem in STUDY_PROBLEMS:
 print("\nVariants")
 keys = sorted(t["variant_key"] for t in STUDY_TASKS)
 check(len(keys) == 8 and len(set(keys)) == 8, f"8 distinct variants: {keys}")
+# A form's identifier rename must not change behaviour: every stored input
+# gives the same output as its un-renamed call on the problem's code.
+by_key = {p["key"]: p for p in STUDY_PROBLEMS}
+for task in STUDY_TASKS:
+    problem = by_key[task["problem_key"]]
+    stored = task["trace_sample_inputs"] + task["trace_data_flow_inputs"] + task["io_example_inputs"]
+    original = (problem["trace_sample_inputs"] + problem["trace_data_flow_inputs"]
+                + problem["io_example_inputs"])
+    same = all(
+        outputs(task[code], call) == outputs(problem["correct_code"], orig)
+        for call, orig in zip(stored, original)
+        for code in ("correct_code", "buggy_code")
+    )
+    name = task["function_signature"].split("(")[0].removeprefix("def ")
+    check(same and all(c.startswith(name + "(") for c in stored),
+          f"{task['variant_key']}: {task['function_signature']} code and inputs agree")
 
 print("\nCondition table")
 for start in (0, 4):

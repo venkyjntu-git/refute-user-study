@@ -7,9 +7,12 @@ study Task rows:
     P2_Direct_buggy1  P2_Contextualized_buggy1  P2_Direct_buggy2  P2_Contextualized_buggy2
 
 Within a problem, everything except the description (and its validator) is
-identical across forms: same function name, same reference solution, same
-buggy programs, and the same Step 2 inputs for both bugs. That is what lets
-any difference between forms be attributed to the specification.
+identical across forms: same reference solution, same buggy programs, and
+the same Step 2 inputs for both bugs. That is what lets any difference
+between forms be attributed to the specification. A form may rename
+identifiers (P2's direct form uses `largest(nums)` instead of
+`warmest(temps)`); the rename is applied mechanically, so behaviour and
+inputs stay the same.
 
 Authoring rules, checked by check_study_tasks.py:
 - No Step 2 input and no Step 1 example input is a counter-example for
@@ -22,6 +25,8 @@ Code-mixed text lives in code_mixed.py, keyed by native language code
 (see the NATIVE_LANGUAGES list in frontend/src/components/StudyIntro.jsx).
 A language with no entry simply gets no code-mixed toggle.
 """
+import re
+
 from assignment import variant_key
 from code_mixed import CODE_MIXED
 
@@ -153,8 +158,10 @@ P2 = dict(
     ),
     forms=dict(
         direct=dict(
+            # A name that does not hint at the setting.
+            rename={"warmest": "largest", "temps": "nums"},
             description=(
-                "Write `warmest(temps)` that takes a non-empty list of numbers "
+                "Write `largest(nums)` that takes a non-empty list of numbers "
                 "and returns the position of its largest value, counting "
                 "positions from 1. If the largest value occurs more than once, "
                 "return the smallest such position."
@@ -172,7 +179,7 @@ P2 = dict(
         contextualized=dict(
             description=(
                 "A weather station in Leh, one of the coldest inhabited places in "
-                "India, records the lowest temperature of each night in January, "
+                "India, records the minimum temperature of each night in January, "
                 "in degrees Celsius to one decimal place. The list has at least 1 "
                 "entry, starts with the night of 1 January and has one entry per "
                 "night, up to the most recent night recorded. The district "
@@ -243,12 +250,24 @@ P2 = dict(
 STUDY_PROBLEMS = [P1, P2]
 
 
+def rename_identifiers(text: str, rename: dict) -> str:
+    """Replace whole-word identifiers in code or a call string."""
+    for old, new in rename.items():
+        text = re.sub(rf"\b{re.escape(old)}\b", new, text)
+    return text
+
+
 def make_variants(problem: dict) -> list:
     """Expand one problem into its four Task dicts (form x bug)."""
     variants = []
     for bug_kind, bug in problem["bugs"].items():
         for form, spec in problem["forms"].items():
             key = variant_key(problem["key"], form, bug_kind)
+            mapping = spec.get("rename", {})
+
+            def r(text):
+                return rename_identifiers(text, mapping)
+
             variants.append(dict(
                 title=key,
                 language="python",
@@ -258,17 +277,17 @@ def make_variants(problem: dict) -> list:
                 bug_kind=bug_kind,
                 description=spec["description"],
                 description_mixed=spec["description_mixed"],
-                input_validator=spec["input_validator"],
+                input_validator=r(spec["input_validator"]),
                 step3_max_attempts=STEP3_MAX_ATTEMPTS,
-                function_signature=problem["function_signature"],
-                correct_code=problem["correct_code"],
-                buggy_code=bug["code"],
-                trace_sample_inputs=problem["trace_sample_inputs"],
-                trace_data_flow_inputs=problem["trace_data_flow_inputs"],
+                function_signature=r(problem["function_signature"]),
+                correct_code=r(problem["correct_code"]),
+                buggy_code=r(bug["code"]),
+                trace_sample_inputs=[r(c) for c in problem["trace_sample_inputs"]],
+                trace_data_flow_inputs=[r(c) for c in problem["trace_data_flow_inputs"]],
                 buggy_line_numbers=bug["buggy_line_numbers"],
                 trace_prefill_steps=1,
                 trace_omit_unchanged_vars=False,
-                io_example_inputs=problem["io_example_inputs"],
+                io_example_inputs=[r(c) for c in problem["io_example_inputs"]],
                 # The study design has no mutation-reflection probe.
                 mutation_line_number=None,
                 mutation_new_line_text=None,

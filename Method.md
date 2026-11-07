@@ -440,8 +440,13 @@ resumes their assignment and progress; it is never re-randomised.
 
 ### Changes to the steps for study tasks
 
-- **Intake survey:** native language, medium of schooling, and self-rated
-  English reading (1–5), stored on the `Participant`.
+- **Participant questionnaire:** native language (Telugu, Tamil, Hindi,
+  Gujarati or German — it also selects the code-mixed version), medium of
+  schooling, self-rated proficiency in English, in the mother language and
+  in computer programming (each 1 = novice to 5 = expert), number of
+  programming courses taken, age, and gender (Female / Male / Other /
+  Prefer not to say), stored on the `Participant`. A returning student keeps
+  their first answers.
 - **Specification:** shown in English by default in Steps 1 and 3, with a
   toggle to a code-mixed version in the student's native language (when the
   WG has written one, in `description_mixed`). The first view and every

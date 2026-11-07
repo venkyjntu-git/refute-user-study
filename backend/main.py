@@ -147,7 +147,9 @@ def _session_response(session: models.StudySession) -> schemas.StartSessionRespo
     return schemas.StartSessionResponse(
         session_id=session.id,
         task_id=task.id,
-        title=task.title,
+        # A study task's title IS its variant key ("P1_Direct_buggy2"), which
+        # names the bug kind — never send that to the browser.
+        title=f"Problem {session.position}" if task.variant_key else task.title,
         language=task.language,
         description=task.description,
         function_signature=task.function_signature,
@@ -270,6 +272,11 @@ def _assign_new_participant(db: Session, req: schemas.RegisterParticipantRequest
             native_language=req.native_language,
             schooling_medium=req.schooling_medium,
             english_proficiency=req.english_proficiency,
+            mother_language_proficiency=req.mother_language_proficiency,
+            programming_proficiency=req.programming_proficiency,
+            programming_courses=req.programming_courses,
+            age=req.age,
+            gender=req.gender,
             slot=slot,
             condition_row=row,
             assigned_task_ids=[task_ids[k] for k in keys],
@@ -910,6 +917,18 @@ def submit_refutation(req: schemas.Step3RefuteRequest, db: Session = Depends(get
 # admin / research export
 # ---------------------------------------------------------------------------
 
+# Participant questionnaire columns, in export order (blank for legacy
+# sessions, which have no participant).
+SURVEY_FIELDS = (
+    "native_language", "schooling_medium", "english_proficiency",
+    "mother_language_proficiency", "programming_proficiency",
+    "programming_courses", "age", "gender",
+)
+
+
+def _survey(part) -> list:
+    return [getattr(part, f) if part else None for f in SURVEY_FIELDS]
+
 @app.post("/api/admin/login", response_model=schemas.AdminLoginResponse)
 def admin_login(req: schemas.AdminLoginRequest):
     if not auth.check_password(req.password):
@@ -1004,7 +1023,7 @@ def export_csv(db: Session = Depends(get_db)):
         "session_id", "student_identifier", "institute", "task_id", "language",
         # study design (blank for legacy sessions)
         "participant_id", "position", "condition_row", "variant_key", "problem_key",
-        "form", "bug_kind", "native_language", "schooling_medium", "english_proficiency",
+        "form", "bug_kind", *SURVEY_FIELDS,
         "step", "event_type", "attempt_number", "is_correct", "timestamp", "payload_json",
     ])
     for ev, sess, task, part in rows:
@@ -1012,8 +1031,7 @@ def export_csv(db: Session = Depends(get_db)):
             sess.id, sess.student_identifier, sess.institute, sess.task_id, task.language,
             sess.participant_id, sess.position, part.condition_row if part else None,
             task.variant_key, task.problem_key, task.form, task.bug_kind,
-            part.native_language if part else None, part.schooling_medium if part else None,
-            part.english_proficiency if part else None,
+            *_survey(part),
             ev.step, ev.event_type, ev.attempt_number, ev.is_correct, ev.timestamp.isoformat(),
             __import__("json").dumps(ev.payload) if ev.payload else "",
         ])
@@ -1184,15 +1202,14 @@ def export_spec_view_csv(db: Session = Depends(get_db)):
     writer.writerow([
         "session_id", "participant_id", "student_identifier", "institute", "position",
         "variant_key", "problem_key", "form", "bug_kind",
-        "native_language", "schooling_medium", "english_proficiency",
+        *SURVEY_FIELDS,
         "step", "version", "timestamp",
     ])
     for ev, sess, task, part in rows:
         writer.writerow([
             sess.id, sess.participant_id, sess.student_identifier, sess.institute, sess.position,
             task.variant_key, task.problem_key, task.form, task.bug_kind,
-            part.native_language if part else None, part.schooling_medium if part else None,
-            part.english_proficiency if part else None,
+            *_survey(part),
             ev.step, ev.version, ev.timestamp.isoformat(),
         ])
     buf.seek(0)

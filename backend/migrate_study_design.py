@@ -34,6 +34,14 @@ MIGRATIONS = {
         "participant_id": "INTEGER",
         "position": "INTEGER",
     },
+    # Participant questionnaire items added after the table first shipped.
+    "participants": {
+        "mother_language_proficiency": "INTEGER",
+        "programming_proficiency": "INTEGER",
+        "programming_courses": "INTEGER",
+        "age": "INTEGER",
+        "gender": "VARCHAR",
+    },
 }
 
 

@@ -140,7 +140,15 @@ class Participant(Base):
     institute = Column(String, nullable=False, index=True)
     native_language = Column(String, nullable=True)
     schooling_medium = Column(String, nullable=True)
-    english_proficiency = Column(Integer, nullable=True)   # self-rated, 1-5
+    # Participant questionnaire. Proficiencies are self-rated 1 (novice) to
+    # 5 (expert). All nullable: participants registered before an item was
+    # added simply have no answer for it.
+    english_proficiency = Column(Integer, nullable=True)
+    mother_language_proficiency = Column(Integer, nullable=True)
+    programming_proficiency = Column(Integer, nullable=True)
+    programming_courses = Column(Integer, nullable=True)   # courses taken so far
+    age = Column(Integer, nullable=True)                   # years
+    gender = Column(String, nullable=True)                 # Female | Male | Other | NoResponse
     slot = Column(Integer, nullable=False)                 # 0-based arrival order at this institute
     condition_row = Column(Integer, nullable=False)        # row of assignment.CONDITIONS
     assigned_task_ids = Column(JSON, nullable=False)       # [first task id, second task id]
