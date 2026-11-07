@@ -3,17 +3,17 @@ import { api } from "../api";
 
 // Fixed lists rather than free text, so values are consistent across entries
 // in the exported data.
-const INSTITUTES = ["BITS Goa", "JNTUGV", "IITRAM", "PSG iTech", "DHAW", "Ashoka"];
+const INSTITUTES = ["BITS Goa", "JNTUGV", "IITRAM", "PSG iTech", "German University of Applied Sciences (DHAW)",];
 
 // `value` is the key the backend looks up in Task.description_mixed (see
 // backend/seed_study.py) — a language with no code-mixed text for a task
 // simply gets no toggle.
 export const NATIVE_LANGUAGES = [
-  { value: "te", label: "Telugu" },
-  { value: "ta", label: "Tamil" },
-  { value: "hi", label: "Hindi" },
-  { value: "gu", label: "Gujarati" },
-  { value: "de", label: "German" },
+  { value: "Telugu", label: "Telugu" },
+  { value: "Tamil", label: "Tamil" },
+  { value: "Hindi", label: "Hindi" },
+  { value: "Gujarati", label: "Gujarati" },
+  { value: "German", label: "German" },
 ];
 
 const SCHOOLING_MEDIUMS = [
