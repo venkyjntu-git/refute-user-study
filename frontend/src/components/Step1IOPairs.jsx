@@ -14,6 +14,7 @@ export default function Step1IOPairs({ session, onCompleted }) {
   const [examplesLoading, setExamplesLoading] = useState(false);
 
   const funcName = extractFunctionName(session.function_signature);
+  const placeholder = session.input_placeholder || {};
 
   useEffect(() => {
     // task_description + io_pairs 'shown' events are logged server-side
@@ -109,7 +110,7 @@ export default function Step1IOPairs({ session, onCompleted }) {
               <code className="call-fixed">{funcName}(</code>
               <input
                 type="text"
-                placeholder="e.g. 1, 2, 3"
+                placeholder={`e.g. ${placeholder.args ?? "1, 2, 3"}`}
                 aria-label={`Call #${idx + 1} arguments`}
                 value={pair.args}
                 onChange={(e) => updatePair(idx, "args", e.target.value)}
@@ -121,7 +122,7 @@ export default function Step1IOPairs({ session, onCompleted }) {
             <label>Expected output</label>
             <input
               type="text"
-              placeholder="e.g. 3"
+              placeholder={`e.g. ${placeholder.output ?? "3"}`}
               value={pair.expected}
               onChange={(e) => updatePair(idx, "expected", e.target.value)}
             />

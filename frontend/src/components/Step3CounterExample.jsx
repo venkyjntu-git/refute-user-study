@@ -13,6 +13,7 @@ export default function Step3CounterExample({ session, buggyCode, onNext, nextEr
   const [myWork, setMyWork] = useState(null);
 
   const funcName = extractFunctionName(session.function_signature);
+  const placeholder = session.input_placeholder || {};
 
   useEffect(() => {
     api.markShown(session.session_id, "counter_example").catch(() => {});
@@ -151,7 +152,7 @@ export default function Step3CounterExample({ session, buggyCode, onNext, nextEr
         <code className="call-fixed">{funcName}(</code>
         <input
           type="text"
-          placeholder="e.g. 1, 3, 5"
+          placeholder={`e.g. ${placeholder.args ?? "1, 3, 5"}`}
           aria-label="Counter-example arguments"
           value={args}
           onChange={(e) => setArgs(e.target.value)}
@@ -162,7 +163,7 @@ export default function Step3CounterExample({ session, buggyCode, onNext, nextEr
       <label>What do you think the correct code returns?</label>
       <input
         type="text"
-        placeholder="e.g. 5"
+        placeholder={`e.g. ${placeholder.output ?? "5"}`}
         value={predictedCorrect}
         onChange={(e) => setPredictedCorrect(e.target.value)}
       />
@@ -170,7 +171,7 @@ export default function Step3CounterExample({ session, buggyCode, onNext, nextEr
       <label>What do you think the buggy code above returns?</label>
       <input
         type="text"
-        placeholder="e.g. 3"
+        placeholder={`e.g. ${placeholder.output ?? "3"}`}
         value={predictedBuggy}
         onChange={(e) => setPredictedBuggy(e.target.value)}
       />
@@ -245,6 +246,7 @@ export default function Step3CounterExample({ session, buggyCode, onNext, nextEr
 // program returns — with a limited number of attempts. Feedback is one bit
 // (refuted or not); only an input that breaks the task's rules says why.
 function StudyRefutation({ session, funcName, onNext, nextError, hasNextTask }) {
+  const placeholder = session.input_placeholder || {};
   const [args, setArgs] = useState("");
   const [requiredOutput, setRequiredOutput] = useState("");
   const [buggyOutput, setBuggyOutput] = useState("");
@@ -306,7 +308,7 @@ function StudyRefutation({ session, funcName, onNext, nextError, hasNextTask }) 
         <code className="call-fixed">{funcName}(</code>
         <input
           type="text"
-          placeholder="arguments"
+          placeholder={placeholder.args ? `e.g. ${placeholder.args}` : "arguments"}
           aria-label="Input arguments"
           value={args}
           disabled={closed}
@@ -318,6 +320,7 @@ function StudyRefutation({ session, funcName, onNext, nextError, hasNextTask }) 
       <label>Output the task requires for this input</label>
       <input
         type="text"
+        placeholder={placeholder.output ? `e.g. ${placeholder.output}` : undefined}
         value={requiredOutput}
         disabled={closed}
         onChange={(e) => setRequiredOutput(e.target.value)}
@@ -326,6 +329,7 @@ function StudyRefutation({ session, funcName, onNext, nextError, hasNextTask }) 
       <label>Output the code above returns for this input</label>
       <input
         type="text"
+        placeholder={placeholder.output ? `e.g. ${placeholder.output}` : undefined}
         value={buggyOutput}
         disabled={closed}
         onChange={(e) => setBuggyOutput(e.target.value)}
