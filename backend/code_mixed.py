@@ -68,7 +68,7 @@ CODE_MIXED = {
             ),
         },
         "contextualized": {
-            "te": (
+            "Telugu": (
                 "ఒక hospital లోని patient monitor, patient యొక్క heart rate ని beats "
                 "per minute (bpm) లో, ప్రతి second కి ఒకసారి record చేస్తుంది. Healthy "
                 "heart rate ఒక second నుండి తర్వాతి second కి కొంచెం మాత్రమే "
@@ -83,7 +83,7 @@ CODE_MIXED = {
                 "`False` return చేసే `has_large_change(readings, T)` అనే function "
                 "రాయండి."
             ),
-            "ta": (
+            "Tamil": (
                 "ஒரு hospital-இன் patient monitor, ஒரு patient-இன் heart rate-ஐ beats "
                 "per minute (bpm)-இல், ஒவ்வொரு second-க்கும் ஒரு முறை record செய்கிறது. "
                 "Healthy heart rate ஒரு second-இலிருந்து அடுத்த second-க்கு கொஞ்சம் "
@@ -100,7 +100,7 @@ CODE_MIXED = {
                 "இல்லையென்றால் `False` return செய்யும் `has_large_change(readings, T)` "
                 "என்ற function-ஐ எழுதுங்கள்."
             ),
-            "hi": (
+            "Hindi": (
                 "एक hospital का patient monitor हर second एक बार patient का heart rate, "
                 "beats per minute (bpm) में, record करता है। एक healthy heart rate एक "
                 "second से अगले second तक बस थोड़ा-सा ही बदलता है। Hospital की clinical "
@@ -114,7 +114,7 @@ CODE_MIXED = {
                 "numbers) और threshold `T` (एक positive whole number) लेता है, और अगर "
                 "recording को review की ज़रूरत है तो `True` return करता है, वरना `False`।"
             ),
-            "gu": (
+            "Gujarati": (
                 "એક hospital નું patient monitor દર second એક વાર patient નો heart "
                 "rate, beats per minute (bpm) માં, record કરે છે. Healthy heart rate એક "
                 "second થી બીજી second સુધી ફક્ત થોડો જ બદલાય છે. Hospital ની clinical "
@@ -128,7 +128,7 @@ CODE_MIXED = {
                 "`T` (એક positive whole number) લે છે, અને જો recording ને review ની "
                 "જરૂર હોય તો `True` return કરે છે, નહીં તો `False`."
             ),
-            "de": (
+            "German": (
                 "Der Patientenmonitor eines Krankenhauses erfasst einmal pro Sekunde die "
                 "Herzfrequenz eines Patienten, gemessen in beats per minute (bpm). Eine "
                 "gesunde Herzfrequenz ändert sich von einer Sekunde zur nächsten nur "
@@ -149,32 +149,32 @@ CODE_MIXED = {
     },
     "P2": {
         "direct": {
-            "te": (
+            "Telugu": (
                 "Numbers ఉన్న ఒక non-empty list ని తీసుకుని, దానిలోని largest value "
                 "యొక్క position ని return చేసే `largest(nums)` రాయండి; positions ని 1 "
                 "నుండి లెక్కించాలి. Largest value ఒకటి కంటే ఎక్కువ సార్లు వస్తే, "
                 "వాటిలో smallest position ని return చేయండి."
             ),
-            "ta": (
+            "Tamil": (
                 "Numbers கொண்ட ஒரு non-empty list-ஐ எடுத்துக்கொண்டு, அதன் largest "
                 "value-இன் position-ஐ return செய்யும் `largest(nums)`-ஐ எழுதுங்கள்; "
                 "positions-ஐ 1-இலிருந்து எண்ண வேண்டும். Largest value ஒன்றுக்கு "
                 "மேற்பட்ட முறை வந்தால், அவற்றில் smallest position-ஐ return "
                 "செய்யுங்கள்."
             ),
-            "hi": (
+            "Hindi": (
                 "`largest(nums)` लिखिए जो numbers की एक non-empty list लेता है और "
                 "उसकी largest value की position return करता है, positions को 1 से "
                 "गिनते हुए। अगर largest value एक से ज़्यादा बार आती है, तो ऐसी सबसे "
                 "छोटी (smallest) position return कीजिए।"
             ),
-            "gu": (
+            "Gujarati": (
                 "`largest(nums)` લખો, જે numbers ની એક non-empty list લે છે અને તેની "
                 "largest value ની position return કરે છે; positions ને 1 થી ગણવાની "
-                "છે. જો largest value એક કરતાં વધુ વાર આવે, તો એમાંથી સૌથી નાની "
+                "છે. જો largest value એક કરતાં વધુ વાર આવે, તો એમાંથી સૌથી নાની "
                 "(smallest) position return કરો."
             ),
-            "de": (
+            "German": (
                 "Schreiben Sie eine Funktion `largest(nums)`, die eine nicht-leere Liste "
                 "`nums` von Zahlen entgegennimmt und die Position ihres größten Werts "
                 "zurückgibt, wobei die Positionen ab 1 gezählt werden. Kommt der größte "
@@ -182,7 +182,7 @@ CODE_MIXED = {
             ),
         },
         "contextualized": {
-            "te": (
+            "Telugu": (
                 "India లో మనుషులు నివసించే అత్యంత చల్లని ప్రదేశాలలో ఒకటైన Leh లోని ఒక "
                 "weather station, January లో ప్రతి రాత్రి యొక్క lowest temperature ని "
                 "degrees Celsius లో, ఒక decimal place వరకు record చేస్తుంది. List లో "
@@ -193,7 +193,7 @@ CODE_MIXED = {
                 "చేసే `warmest(temps)` రాయండి. ఒకటి కంటే ఎక్కువ రాత్రులు సమానంగా warm "
                 "గా ఉంటే, earliest date ని return చేయండి."
             ),
-            "ta": (
+            "Tamil": (
                 "India-வில் மக்கள் வாழும் மிகக் குளிரான இடங்களில் ஒன்றான Leh-இல் உள்ள "
                 "ஒரு weather station, January மாதத்தில் ஒவ்வொரு இரவின் lowest "
                 "temperature-ஐ degrees Celsius-இல், ஒரு decimal place வரை record "
@@ -205,7 +205,7 @@ CODE_MIXED = {
                 "`warmest(temps)`-ஐ எழுதுங்கள். ஒன்றுக்கு மேற்பட்ட இரவுகள் சமமாக warm "
                 "ஆக இருந்தால், earliest date-ஐ return செய்யுங்கள்."
             ),
-            "hi": (
+            "Hindi": (
                 "Leh में, जो India की सबसे ठंडी आबादी वाली जगहों में से एक है, एक "
                 "weather station January में हर रात का lowest temperature, degrees "
                 "Celsius में, एक decimal place तक record करता है। List में कम से कम 1 "
@@ -216,7 +216,7 @@ CODE_MIXED = {
                 "ज़्यादा रातें बराबर warm थीं, तो सबसे पहली (earliest) date return "
                 "कीजिए।"
             ),
-            "gu": (
+            "Gujarati": (
                 "India ની સૌથી ઠંડી વસવાટવાળી જગ્યાઓમાંની એક, Leh માં એક weather "
                 "station January ની દરેક રાતનું lowest temperature, degrees Celsius "
                 "માં, એક decimal place સુધી record કરે છે. List માં ઓછામાં ઓછી 1 entry "
@@ -226,7 +226,7 @@ CODE_MIXED = {
                 "warm રાતની January ની date return કરે છે. જો એક કરતાં વધુ રાતો સરખી "
                 "warm હોય, તો સૌથી પહેલી (earliest) date return કરો."
             ),
-            "de": (
+            "German": (
                 "Eine Wetterstation in Kühnhaide / Sachsen, einem der kältesten "
                 "bewohnten Orte Deutschlands, zeichnet die Tiefsttemperatur jeder "
                 "Januarnacht in Grad Celsius mit einer Dezimalstelle auf. Die Liste "
