@@ -119,6 +119,10 @@ class Task(Base):
     # requires, with at most this many attempts. Null = legacy Step 3
     # (both predictions, unlimited attempts).
     step3_max_attempts = Column(Integer, nullable=True)
+    # Placeholder text for the Step 1 / Step 3 answer boxes, e.g.
+    # {"args": "[1, 2, 3], 5", "output": "False"}. Never a counter-example.
+    # Null = the frontend's generic placeholders.
+    input_placeholder = Column(JSON, nullable=True)
 
     sessions = relationship("StudySession", back_populates="task")
 

@@ -20,6 +20,9 @@ Authoring rules, checked by check_study_tasks.py:
   example's revealed output must not hand over a counter-example).
 - The paper's counter-examples are counter-examples, and the contextualized
   validator accepts them.
+- Each form's input_placeholder (the greyed-out example in the Step 1 / Step 3
+  answer boxes) is valid for that form, is not a counter-example, and shows
+  the reference output.
 
 Code-mixed text lives in code_mixed.py, keyed by native language code
 (see the NATIVE_LANGUAGES list in frontend/src/components/StudyIntro.jsx).
@@ -57,6 +60,7 @@ P1 = dict(
                 "element."
             ),
             description_mixed=CODE_MIXED["P1"]["direct"],
+            input_placeholder={"args": "[1, 2, 3], 5", "output": "True/False"},
             input_validator=(
                 "def valid(readings, T):\n"
                 "    if not isinstance(readings, list) or not all(type(r) is int for r in readings):\n"
@@ -83,6 +87,9 @@ P1 = dict(
                 "otherwise."
             ),
             description_mixed=CODE_MIXED["P1"]["contextualized"],
+            # Realistic, and the large change is in the first pair, so not a
+            # counter-example for either bug.
+            input_placeholder={"args": "[80, 110, 108], 20", "output": "True/False"},
             # Plausibility ranges are a WG content decision — confirm before
             # the pilot.
             input_validator=(
@@ -167,6 +174,7 @@ P2 = dict(
                 "return the smallest such position."
             ),
             description_mixed=CODE_MIXED["P2"]["direct"],
+            input_placeholder={"args": "[1.5, 2.0, 0.5]", "output": "position"},
             input_validator=(
                 "def valid(temps):\n"
                 "    if not isinstance(temps, list) or len(temps) == 0:\n"
@@ -189,6 +197,8 @@ P2 = dict(
                 "warm, return the earliest date."
             ),
             description_mixed=CODE_MIXED["P2"]["contextualized"],
+            # Plausible in Leh; the warmest night is the first, no ties.
+            input_placeholder={"args": "[-3.5, -10.0, -12.5]", "output": "position"},
             # Plausibility ranges are a WG content decision — confirm before
             # the pilot.
             input_validator=(
@@ -279,6 +289,7 @@ def make_variants(problem: dict) -> list:
                 description_mixed=spec["description_mixed"],
                 input_validator=r(spec["input_validator"]),
                 step3_max_attempts=STEP3_MAX_ATTEMPTS,
+                input_placeholder=spec["input_placeholder"],
                 function_signature=r(problem["function_signature"]),
                 correct_code=r(problem["correct_code"]),
                 buggy_code=r(bug["code"]),

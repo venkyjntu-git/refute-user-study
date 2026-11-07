@@ -165,6 +165,7 @@ def _session_response(session: models.StudySession) -> schemas.StartSessionRespo
             if e.step == models.StepName.counter_example
             and e.event_type == models.EventType.submitted
         ),
+        input_placeholder=task.input_placeholder,
     )
 
 

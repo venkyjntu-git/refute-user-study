@@ -41,6 +41,8 @@ class StartSessionResponse(BaseModel):
     position: Optional[int] = None
     step3_max_attempts: Optional[int] = None
     step3_attempts_used: int = 0   # so a resumed Step 3 shows the right count
+    # {"args": ..., "output": ...} for the answer boxes; null = generic text.
+    input_placeholder: Optional[Dict[str, str]] = None
 
 
 class RegisterParticipantRequest(BaseModel):

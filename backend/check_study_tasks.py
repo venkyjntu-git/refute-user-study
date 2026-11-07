@@ -8,6 +8,8 @@ Check the study task content in seed_study.py by actually running it:
 - each form's validator accepts the Step 2 inputs' shape where relevant, the
   examples and counter-examples, and the contextualized validator rejects the
   listed implausible inputs;
+- each form's input placeholder is valid for it, shows the reference output,
+  and is not a counter-example;
 - the condition table balances form x bug per problem in every 4 rows, and
   order in every 8.
 
@@ -51,10 +53,19 @@ for problem in STUDY_PROBLEMS:
             for form, spec in problem["forms"].items():
                 reason = sandbox.run_validator(spec["input_validator"], call)
                 check(reason is None, f"{form} validator accepts {call} ({reason})")
+    name = problem["function_signature"].split("(")[0].removeprefix("def ")
     for form, spec in problem["forms"].items():
         for call in problem["io_example_inputs"]:
             reason = sandbox.run_validator(spec["input_validator"], call)
             check(reason is None, f"{form} validator accepts example {call} ({reason})")
+        placeholder = spec["input_placeholder"]
+        call = f"{name}({placeholder['args']})"
+        reason = sandbox.run_validator(spec["input_validator"], call)
+        want = outputs(ref, call)
+        check(reason is None and want == placeholder["output"]
+              and all(outputs(b["code"], call) == want for b in problem["bugs"].values()),
+              f"{form} placeholder {call} -> {placeholder['output']}: valid, reference output, "
+              f"not a counter-example (ref {want}, validator {reason or 'ok'})")
     for call in problem["implausible_examples"]:
         d = sandbox.run_validator(problem["forms"]["direct"]["input_validator"], call)
         c = sandbox.run_validator(problem["forms"]["contextualized"]["input_validator"], call)

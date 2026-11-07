@@ -565,6 +565,7 @@ TRACE_CONFIG_FIELDS = (
 # changing a program under existing sessions would corrupt their analysis.
 STUDY_CONTENT_FIELDS = (
     "description", "description_mixed", "input_validator", "step3_max_attempts",
+    "input_placeholder",
 )
 
 
