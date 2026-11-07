@@ -27,7 +27,7 @@ Keys are the native-language codes from the study intake survey
 CODE_MIXED = {
     "P1": {
         "direct": {
-            "te": (
+            "Telugu": (
                 "`has_large_change(readings, T)` అనే function రాయండి. ఇది integers "
                 "ఉన్న `readings` అనే list ని, ఒక positive integer `T` ని తీసుకుంటుంది. "
                 "`readings` లో ఏదైనా ఒక consecutive elements pair మధ్య absolute "
@@ -35,7 +35,7 @@ CODE_MIXED = {
                 "`False` return చేస్తుంది. List empty గా ఉండొచ్చు, లేదా అందులో ఒకే ఒక "
                 "element ఉండొచ్చు."
             ),
-            "ta": (
+            "Tamil": (
                 "`has_large_change(readings, T)` என்ற function-ஐ எழுதுங்கள். இது "
                 "integers கொண்ட `readings` என்ற list-ஐயும், ஒரு positive integer "
                 "`T`-ஐயும் எடுத்துக்கொள்ளும். `readings`-இல் ஏதாவது ஒரு consecutive "
@@ -44,21 +44,21 @@ CODE_MIXED = {
                 "செய்யும். List empty ஆக இருக்கலாம், அல்லது அதில் ஒரே ஒரு element "
                 "மட்டும் இருக்கலாம்."
             ),
-            "hi": (
+            "Hindi": (
                 "एक function `has_large_change(readings, T)` लिखिए जो integers की एक "
                 "list `readings` और एक positive integer `T` लेता है। अगर `readings` के "
                 "किसी भी consecutive elements के pair का absolute difference `T` से "
                 "greater है, तो यह `True` return करता है, वरना `False`। List empty हो "
                 "सकती है या उसमें सिर्फ़ एक element हो सकता है।"
             ),
-            "gu": (
+            "Gujarati": (
                 "`has_large_change(readings, T)` નામનું function લખો, જે integers ની "
                 "એક list `readings` અને એક positive integer `T` લે છે. જો `readings` "
                 "ના કોઈ પણ consecutive elements ની pair વચ્ચેનો absolute difference "
                 "`T` કરતાં greater હોય, તો તે `True` return કરે છે, નહીં તો `False`. "
                 "List empty હોઈ શકે છે અથવા તેમાં ફક્ત એક જ element હોઈ શકે છે."
             ),
-            "de": (
+            "German": (
                 "Schreiben Sie eine Funktion `has_large_change(readings, T)`, die eine "
                 "Liste `readings` von Integer-Werten und einen positiven Integer-Wert "
                 "`T` entgegennimmt. Wenn die absolute Differenz zwischen irgendeinem "
