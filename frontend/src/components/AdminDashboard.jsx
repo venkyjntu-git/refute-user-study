@@ -422,6 +422,8 @@ const DOWNLOADS = [
     what: "Step 2 control-flow answers, one row per line." },
   { path: "/api/admin/data_flow_export.csv", file: "data_flow_cells.csv",
     what: "Step 2 data-flow answers, one row per variable value." },
+  { path: "/api/admin/signups.csv", file: "signups.csv",
+    what: "Sign-up contact details (stored separately from study responses)." },
 ];
 
 function Downloads({ institute, onError }) {

@@ -496,3 +496,57 @@ input.admin-password {
 }
 
 .download-row button { min-width: 200px; }
+
+/* --- sign-up form + demo video (before the study survey) --- */
+input[type="email"] {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+.hint {
+  color: #666;
+  font-size: 13px;
+  margin: 2px 0 6px;
+}
+
+h3.form-section { margin-top: 24px; }
+
+.choice-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+label.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-weight: 400;
+  margin: 0;
+}
+
+label.choice input { margin-top: 3px; }
+
+.video-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.video-frame iframe,
+.video-host,
+.video-host > * {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}

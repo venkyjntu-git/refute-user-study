@@ -31,6 +31,7 @@ submission).
 from typing import List
 import datetime as dt
 import os
+import re
 
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -344,6 +345,40 @@ def register_participant(req: schemas.RegisterParticipantRequest, db: Session = 
         session=_session_response(session),
         stage=stage,
     )
+
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+@app.post("/api/signup", response_model=schemas.SignUpResponse)
+def sign_up(req: schemas.SignUpRequest, db: Session = Depends(get_db)):
+    """Pre-study sign-up. Stored on its own, never linked to a Participant."""
+    fields = {
+        "full_name": req.full_name.strip(),
+        "roll_number": req.roll_number.strip(),
+        "email": req.email.strip(),
+        "programme_branch": req.programme_branch.strip(),
+    }
+    for name, value in fields.items():
+        if not value:
+            raise HTTPException(400, f"{name.replace('_', ' ')} is required")
+    if not _EMAIL_RE.match(fields["email"]):
+        raise HTTPException(400, "Please enter a valid email address.")
+    if not (req.consent_signup_only and req.consent_voluntary and req.consent_contact):
+        raise HTTPException(400, "Please tick all three statements to sign up.")
+    row = models.SignUp(
+        **fields,
+        phone=(req.phone or "").strip() or None,
+        institute=req.institute,
+        programming_language=req.programming_language,
+        consent_signup_only=True,
+        consent_voluntary=True,
+        consent_contact=True,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return schemas.SignUpResponse(signup_id=row.id)
 
 
 @app.post("/api/spec_view")
@@ -978,6 +1013,32 @@ def export_session_summary_csv(institute: str = None, db: Session = Depends(get_
     return StreamingResponse(
         buf, media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=session_summary.csv"},
+    )
+
+
+@app.get("/api/admin/signups.csv", dependencies=[Depends(auth.require_admin)])
+def export_signups_csv(db: Session = Depends(get_db)):
+    """Sign-up contact details, one row per sign-up — kept apart from the
+    study-response exports."""
+    import io
+    import csv
+    from fastapi.responses import StreamingResponse
+
+    columns = ["id", "created_at", "full_name", "roll_number", "email", "phone",
+               "institute", "programme_branch", "programming_language",
+               "consent_signup_only", "consent_voluntary", "consent_contact"]
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(columns)
+    for s in db.query(models.SignUp).order_by(models.SignUp.id).all():
+        writer.writerow([
+            s.created_at.isoformat() if c == "created_at" and s.created_at else getattr(s, c)
+            for c in columns
+        ])
+    buf.seek(0)
+    return StreamingResponse(
+        buf, media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=signups.csv"},
     )
 
 

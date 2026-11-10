@@ -2,12 +2,16 @@ import React, { useState } from "react";
 import { api } from "./api";
 import TaskIntro from "./components/TaskIntro";
 import StudyIntro from "./components/StudyIntro";
+import SignUpForm from "./components/SignUpForm";
+import DemoVideo from "./components/DemoVideo";
 import AdminDashboard from "./components/AdminDashboard";
 import Step1IOPairs from "./components/Step1IOPairs";
 import Step2Trace from "./components/Step2Trace";
 import Step3CounterExample from "./components/Step3CounterExample";
 
 const STAGES = {
+  SIGNUP: "signup",
+  VIDEO: "video",
   INTRO: "intro",
   IO_PAIRS: "io_pairs",
   TRACE: "trace",
@@ -22,8 +26,20 @@ const MODE = new URLSearchParams(window.location.search).get("mode");
 const PRACTICE_MODE = MODE === "practice";
 const ADMIN_MODE = MODE === "admin";
 
+// Set once a student has signed up and watched the demo video, so a reload
+// (e.g. to resume) goes straight to the survey, which restores progress.
+const ONBOARDED_KEY = "refute_onboarded";
+const isOnboarded = () => {
+  try { return localStorage.getItem(ONBOARDED_KEY) === "1"; } catch { return false; }
+};
+const markOnboarded = () => {
+  try { localStorage.setItem(ONBOARDED_KEY, "1"); } catch { /* private mode */ }
+};
+
 export default function App() {
-  const [stage, setStage] = useState(STAGES.INTRO);
+  const [stage, setStage] = useState(
+    PRACTICE_MODE || isOnboarded() ? STAGES.INTRO : STAGES.SIGNUP,
+  );
   const [session, setSession] = useState(null);
   const [buggyCode, setBuggyCode] = useState(null);
   const [traceTables, setTraceTables] = useState(null);
@@ -111,7 +127,7 @@ export default function App() {
   return (
     // The trace table needs more horizontal room than the rest of the flow.
     <div className={"app-shell" + (stage === STAGES.TRACE ? " wide" : "")}>
-      {stage !== STAGES.INTRO && stage !== STAGES.ALL_DONE && (
+      {stageOrder.includes(stage) && (
         <div className="step-indicator">
           {taskList.length > 1 && (
             <div className="task-progress">Problem {taskIndex + 1} of {taskList.length}</div>
@@ -128,6 +144,19 @@ export default function App() {
             </div>
           ))}
         </div>
+      )}
+
+      {stage === STAGES.SIGNUP && (
+        <SignUpForm onDone={() => setStage(STAGES.VIDEO)} />
+      )}
+
+      {stage === STAGES.VIDEO && (
+        <DemoVideo
+          onDone={() => {
+            markOnboarded();
+            setStage(STAGES.INTRO);
+          }}
+        />
       )}
 
       {stage === STAGES.INTRO && !PRACTICE_MODE && (

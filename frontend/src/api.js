@@ -84,6 +84,13 @@ export const api = {
       }),
     }),
 
+  // Pre-study sign-up (contact details, stored apart from study data).
+  signUp: (form) =>
+    request("/api/signup", {
+      method: "POST",
+      body: JSON.stringify(form),
+    }),
+
   // Counterbalanced study: create or resume a participant (server assigns
   // their two problems) — see register_participant in backend/main.py.
   registerParticipant: (survey) =>

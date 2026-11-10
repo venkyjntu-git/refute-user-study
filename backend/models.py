@@ -219,3 +219,24 @@ class SpecViewEvent(Base):
     step = Column(String, nullable=False)      # "io_pairs" | "counter_example"
     version = Column(String, nullable=False)   # "en" | "mixed"
     timestamp = Column(DateTime, default=dt.datetime.utcnow, index=True)
+
+
+class SignUp(Base):
+    """Pre-study sign-up (contact details). Deliberately NOT linked to
+    Participant: the sign-up text promises contact details are kept
+    separately from study responses."""
+    __tablename__ = "signups"
+
+    id = Column(Integer, primary_key=True, index=True)
+    full_name = Column(String, nullable=False)
+    roll_number = Column(String, nullable=False)
+    email = Column(String, nullable=False)
+    phone = Column(String, nullable=True)
+    institute = Column(String, nullable=False)              # IITRAM | PSG iTech | JNTU-GV | DHAW
+    programme_branch = Column(String, nullable=False)       # e.g. "B.Tech CSE"
+    programming_language = Column(String, nullable=False)   # Python | C
+    # The three confirmation statements; the API only accepts all three ticked.
+    consent_signup_only = Column(Boolean, nullable=False)
+    consent_voluntary = Column(Boolean, nullable=False)
+    consent_contact = Column(Boolean, nullable=False)
+    created_at = Column(DateTime, default=dt.datetime.utcnow)

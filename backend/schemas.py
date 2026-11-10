@@ -70,6 +70,25 @@ class RegisterParticipantResponse(BaseModel):
     stage: str
 
 
+class SignUpRequest(BaseModel):
+    """The pre-study sign-up form (mirrors the Google Form). Emptiness, the
+    email shape and the three consents are checked in the endpoint."""
+    full_name: str
+    roll_number: str
+    email: str
+    phone: Optional[str] = None
+    institute: Literal["IITRAM", "PSG iTech", "JNTU-GV", "DHAW"]
+    programme_branch: str
+    programming_language: Literal["Python", "C"]
+    consent_signup_only: bool
+    consent_voluntary: bool
+    consent_contact: bool
+
+
+class SignUpResponse(BaseModel):
+    signup_id: int
+
+
 class SpecViewRequest(BaseModel):
     session_id: int
     step: str      # "io_pairs" | "counter_example"
