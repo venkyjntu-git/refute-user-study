@@ -1,11 +1,10 @@
 import React, { useState } from "react";
 import { api } from "../api";
 
-// Mirrors the Google Form "Sign-up: Refute Problem Programming Study (Same
-// Code, Different Contexts)". Contact details are stored on their own
+// Contact details are stored on their own
 // (backend models.SignUp), never linked to the study responses.
-const INSTITUTES = ["IITRAM", "PSG iTech", "JNTU-GV", "DHAW"];
-const LANGUAGES = ["Python", "C"];
+const INSTITUTES = ["IITRAM", "PSG iTech", "JNTU-GV", "DHAW", "UCEN"];
+const LANGUAGES = ["Python"];
 
 const CONSENTS = [
   {

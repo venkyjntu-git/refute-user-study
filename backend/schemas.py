@@ -77,9 +77,9 @@ class SignUpRequest(BaseModel):
     roll_number: str
     email: str
     phone: Optional[str] = None
-    institute: Literal["IITRAM", "PSG iTech", "JNTU-GV", "DHAW"]
+    institute: Literal["IITRAM", "PSG iTech", "JNTU-GV", "DHAW", "UCEN"]
     programme_branch: str
-    programming_language: Literal["Python", "C"]
+    programming_language: Literal["Python"]
     consent_signup_only: bool
     consent_voluntary: bool
     consent_contact: bool

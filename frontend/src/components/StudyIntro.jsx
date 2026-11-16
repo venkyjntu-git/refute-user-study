@@ -3,7 +3,7 @@ import { api } from "../api";
 
 // Fixed lists rather than free text, so values are consistent across entries
 // in the exported data.
-const INSTITUTES = ["BITS Goa", "JNTUGV", "IITRAM", "PSG iTech", "German University of Applied Sciences (DHAW)",];
+const INSTITUTES = ["BITS Goa", "JNTUGV", "IITRAM", "PSG iTech", "German University of Applied Sciences (DHAW)", "UCEN"];
 
 // `value` is the key the backend looks up in Task.description_mixed (see
 // backend/seed_study.py) — a language with no code-mixed text for a task

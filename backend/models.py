@@ -232,9 +232,9 @@ class SignUp(Base):
     roll_number = Column(String, nullable=False)
     email = Column(String, nullable=False)
     phone = Column(String, nullable=True)
-    institute = Column(String, nullable=False)              # IITRAM | PSG iTech | JNTU-GV | DHAW
+    institute = Column(String, nullable=False)              # IITRAM | PSG iTech | JNTU-GV | DHAW | UCEN
     programme_branch = Column(String, nullable=False)       # e.g. "B.Tech CSE"
-    programming_language = Column(String, nullable=False)   # Python | C
+    programming_language = Column(String, nullable=False)   # Python
     # The three confirmation statements; the API only accepts all three ticked.
     consent_signup_only = Column(Boolean, nullable=False)
     consent_voluntary = Column(Boolean, nullable=False)
